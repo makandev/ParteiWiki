@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.embeddings import get_embedder
@@ -152,9 +152,12 @@ def frage_stellen(
 def _zaehle_aehnliche_fragen(
     db: Session, vektor: list[float], schwelle: float = 0.15
 ) -> int:
-    """Zahl früherer Fragen mit Cosinus-Distanz unter ``schwelle``."""
-    rows = db.execute(
-        select(NutzerFrage.embedding.cosine_distance(vektor).label("d"))
-        .where(NutzerFrage.embedding.is_not(None))
-    ).all()
-    return sum(1 for (d,) in rows if d is not None and float(d) < schwelle)
+    """Zahl früherer Fragen mit Cosinus-Distanz unter ``schwelle`` (in der DB)."""
+    return db.scalar(
+        select(func.count())
+        .select_from(NutzerFrage)
+        .where(
+            NutzerFrage.embedding.is_not(None),
+            NutzerFrage.embedding.cosine_distance(vektor) < schwelle,
+        )
+    ) or 0

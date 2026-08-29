@@ -28,3 +28,11 @@ def test_aehnlichkeit():
     nah = emb.embed("Rentenpolitik Position geändert")
     fern = emb.embed("völlig anderes Thema Fußball Wetter")
     assert _cos(basis, nah) > _cos(basis, fern)
+
+
+def test_hashing_leerer_text_ist_nullvektor():
+    # HashingEmbedder liefert für leeren Text den Nullvektor – die Guard-Logik
+    # im SpacyVectorEmbedder (Norm 0 -> Hashing-Fallback) verhindert genau, dass
+    # ein solcher Nullvektor als spaCy-Embedding gespeichert wird.
+    v = HashingEmbedder(dim=32).embed("")
+    assert len(v) == 32 and all(x == 0.0 for x in v)

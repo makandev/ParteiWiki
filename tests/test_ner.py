@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import uuid
 
-from app.core.ner import GazetteerTagger, _Eintrag, _muster
+from types import SimpleNamespace
+
+from app.core.ner import GazetteerTagger, _Eintrag, _muster, nachnamen_eintraege
 
 
 def _tagger():
@@ -41,3 +43,28 @@ def test_wortgrenze_keine_teiltreffer():
 def test_keine_erkennung_ohne_treffer():
     tagger, _, _ = _tagger()
     assert tagger.tag("Das Wetter ist heute schön.") == []
+
+
+# --- P1.3: konservative Nachnamen-Erkennung -------------------------------
+def _pol(name, pid=None):
+    return SimpleNamespace(name=name, id=pid or uuid.uuid4(), partei_id=uuid.uuid4())
+
+
+def test_eindeutiger_nachname_wird_zugelassen():
+    eintraege = nachnamen_eintraege([_pol("Alice Weidel")])
+    assert len(eintraege) == 1
+    assert eintraege[0].muster.search("Weidel fordert Neuwahlen")
+
+
+def test_mehrdeutiger_nachname_wird_abgelehnt():
+    # Zwei Politiker mit gleichem Nachnamen -> nicht eindeutig -> kein Muster.
+    assert nachnamen_eintraege([_pol("Anna Müller"), _pol("Bernd Müller")]) == []
+
+
+def test_haeufigwort_nachname_wird_abgelehnt():
+    # "Wolf" steht auf der Stoppliste -> kein Nachnamen-Muster.
+    assert nachnamen_eintraege([_pol("Frank Wolf")]) == []
+
+
+def test_zu_kurzer_nachname_wird_abgelehnt():
+    assert nachnamen_eintraege([_pol("Max Ott")]) == []

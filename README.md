@@ -122,7 +122,7 @@ app/
   api/           REST-Router
   web/           Server-gerenderte Ansichten + neutrale Labels
   templates/     Jinja2-Templates
-migrations/      Alembic (0001 Basis, 0002 news/ner)
+migrations/      Alembic (0001 Basis, 0002 news/ner, 0003 HNSW-Vektor-Indizes)
 scripts/         seed / ingest_news / check_diffs / reindex / import_*
 tests/
 ```

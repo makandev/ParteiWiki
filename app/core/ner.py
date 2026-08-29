@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass
+from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -36,6 +37,24 @@ PARTEI_ALIASE: dict[str, list[str]] = {
     "Grüne": ["Bündnis 90/Die Grünen", "Bündnis 90", "Die Grünen"],
     "Die Linke": ["Linkspartei", "Die Linke"],
 }
+
+# Nachnamen, die zugleich gängige Wörter/Vornamen sind, werden NICHT als
+# Nachnamen-Muster zugelassen (Falsch-Positiv-Schutz für Kriterium 1.3).
+NACHNAME_STOPP: set[str] = {
+    "wolf", "koch", "bauer", "richter", "jung", "lang", "kurz", "gut", "neu",
+    "klein", "groß", "gross", "weiß", "weiss", "berg", "stein", "winter",
+    "sommer", "herbst", "fuchs", "vogel", "stark", "roth", "braun", "schwarz",
+    "hahn", "beck", "ernst", "list", "reich", "engel", "kaiser",
+}
+
+
+class Tagger(Protocol):
+    """Gemeinsames Interface von GazetteerTagger und SpacyTagger."""
+
+    @property
+    def methode(self) -> TagMethode: ...
+
+    def tag(self, text: str) -> list["Erkennung"]: ...
 
 
 @dataclass(frozen=True)
@@ -59,6 +78,33 @@ def _muster(name: str) -> re.Pattern:
     return re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)
 
 
+def nachnamen_eintraege(politiker: list) -> list["_Eintrag"]:
+    """Zusätzliche Nachnamen-Muster – konservativ gegen Falsch-Positive.
+
+    Ein Nachname wird nur zugelassen, wenn er (a) unter den übergebenen
+    Politikern eindeutig ist, (b) mindestens 4 Zeichen hat und (c) kein
+    gängiges Wort/Vorname (``NACHNAME_STOPP``) ist. Erwartet Objekte mit
+    ``name``, ``id`` und ``partei_id``.
+    """
+    nach: dict[str, list] = {}
+    for pol in politiker:
+        teile = (pol.name or "").split()
+        if len(teile) >= 2:
+            nach.setdefault(teile[-1], []).append(pol)
+    eintraege: list[_Eintrag] = []
+    for nachname, treffer in nach.items():
+        if (
+            len(treffer) == 1
+            and len(nachname) >= 4
+            and nachname.lower() not in NACHNAME_STOPP
+        ):
+            pol = treffer[0]
+            eintraege.append(
+                _Eintrag(_muster(nachname), pol.name, pol.id, pol.partei_id, len(nachname))
+            )
+    return eintraege
+
+
 class GazetteerTagger:
     """Erkennt bekannte Namen aus der Datenbank per Wortgrenzen-Abgleich."""
 
@@ -76,11 +122,12 @@ class GazetteerTagger:
                     eintraege.append(
                         _Eintrag(_muster(n), p.name, None, p.id, len(n))
                     )
-        for pol in db.scalars(select(Politiker)).all():
-            if pol.name:
-                eintraege.append(
-                    _Eintrag(_muster(pol.name), pol.name, pol.id, pol.partei_id, len(pol.name))
-                )
+        politiker = [p for p in db.scalars(select(Politiker)).all() if p.name]
+        for pol in politiker:
+            eintraege.append(
+                _Eintrag(_muster(pol.name), pol.name, pol.id, pol.partei_id, len(pol.name))
+            )
+        eintraege.extend(nachnamen_eintraege(politiker))
         return cls(eintraege)
 
     @property
@@ -115,9 +162,9 @@ class SpacyTagger:
         self._gazetteer = gazetteer
         self._nlp = None
         try:  # pragma: no cover - abhängig von optionaler Installation
-            import spacy
+            from app.core.spacy_loader import load_spacy
 
-            self._nlp = spacy.load(modell)
+            self._nlp = load_spacy(modell)  # geteilte Instanz (auch vom Embedder genutzt)
         except Exception:
             self._nlp = None
 
@@ -145,7 +192,7 @@ class SpacyTagger:
         return list(einzig.values())
 
 
-def tagger_fuer(db: Session):
+def tagger_fuer(db: Session) -> Tagger:
     """Liefert den konfigurierten Tagger (Gazetteer oder spaCy) über der DB."""
     gazetteer = GazetteerTagger.aus_db(db)
     if settings.ner.lower() == "spacy":
@@ -153,18 +200,19 @@ def tagger_fuer(db: Session):
     return gazetteer
 
 
-def tag_meldung(db: Session, meldung: Meldung, tagger) -> list[Erwaehnung]:
+def tag_meldung(db: Session, meldung: Meldung, tagger: Tagger) -> list[Erwaehnung]:
     """Erkennt Entitäten in Titel + Zusammenfassung und legt Erwähnungen an.
 
     Idempotent pro (Meldung, Ziel): bestehende Erwähnungen werden nicht doppelt
     angelegt. Ohne Commit – der Aufrufer committet.
     """
     text = " ".join(filter(None, [meldung.titel, meldung.zusammenfassung]))
+    erkennungen = tagger.tag(text)  # nur einmal taggen (Pipeline ist teuer)
     vorhandene = {
         (e.politiker_id, e.partei_id) for e in meldung.erwaehnungen
     }
     neu: list[Erwaehnung] = []
-    for erk in tagger.tag(text):
+    for erk in erkennungen:
         schluessel = (erk.politiker_id, erk.partei_id)
         if schluessel in vorhandene:
             continue
@@ -181,7 +229,7 @@ def tag_meldung(db: Session, meldung: Meldung, tagger) -> list[Erwaehnung]:
 
     # Primäre Partei der Meldung ableiten, falls noch nicht gesetzt.
     if meldung.partei_id is None:
-        for erk in tagger.tag(text):
+        for erk in erkennungen:
             if erk.partei_id is not None:
                 meldung.partei_id = erk.partei_id
                 break

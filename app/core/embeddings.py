@@ -91,10 +91,11 @@ class SpacyVectorEmbedder:
 
     def __init__(self, modell: str, dim: int):
         import numpy as np  # lazy
-        import spacy
+
+        from app.core.spacy_loader import load_spacy
 
         self._np = np
-        self._nlp = spacy.load(modell, disable=["tagger", "parser", "ner", "lemmatizer"])
+        self._nlp = load_spacy(modell)  # geteilte Instanz (auch vom NER genutzt)
         if not self._nlp.vocab.vectors_length:
             raise ValueError(f"spaCy-Modell '{modell}' hat keine Wortvektoren.")
         self.dim = self._nlp.vocab.vectors_length
@@ -102,13 +103,21 @@ class SpacyVectorEmbedder:
             raise ValueError(
                 f"EMBEDDING_DIM={dim} passt nicht zum Modell ({self.dim} Dim.)"
             )
+        # Fallback für Texte ganz ohne bekannte Wortvektoren (Nullvektor -> NaN
+        # bei cosine_distance). Deterministisch, gleiche Dimension.
+        self._fallback = HashingEmbedder(self.dim)
 
     def embed(self, text: str) -> list[float]:
-        vec = self._nlp(text or "").vector
+        # make_doc tokenisiert nur (ohne Pipeline-Komponenten) – der .vector
+        # kommt aus der statischen Vektortabelle, also schnell trotz geteiltem
+        # Voll-Modell.
+        vec = self._nlp.make_doc(text or "").vector
         norm = float(self._np.linalg.norm(vec))
-        if norm > 0:
-            vec = vec / norm
-        return [float(x) for x in vec]
+        if norm == 0:
+            # Kein einziges Vektorwort erkannt -> deterministischer Fallback,
+            # damit die Zeile nie einen Nullvektor (NaN-Distanz) speichert.
+            return self._fallback.embed(text)
+        return [float(x) for x in (vec / norm)]
 
 
 _embedder: Embedder | None = None
