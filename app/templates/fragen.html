@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Frage stellen – ParteiWiki{% endblock %}
+{% block content %}
+<nav class="breadcrumb"><a href="/">Übersicht</a> / Frage stellen</nav>
+<h1>Wurde das schon besprochen?</h1>
+<p class="lead">
+  Die Frage wird gegen indexierte Ereignisse durchsucht. Jede Antwort verweist
+  auf konkrete Datensätze mit Quellen (Zitations-Pflicht) und zeigt einen
+  Konfidenz-Score anhand der Zahl unabhängiger Quellen.
+</p>
+
+<form method="post" action="/fragen" class="frageform">
+  <input type="text" name="frage" value="{{ frage }}" placeholder="z. B. Wie hat sich Position X entwickelt?" autofocus>
+  <button type="submit">Suchen</button>
+</form>
+
+{% if antwort is not none %}
+  {% if antwort.schon_besprochen %}
+  <p class="muted">
+    Ähnliche frühere Fragen: {{ antwort.aehnliche_fragen_gefunden }}.
+    Gefundene Ereignisse:
+  </p>
+  <ul class="treffer">
+    {% for t in antwort.treffer %}
+    <li>
+      <a href="/ereignisse/{{ t.ereignis.id }}">{{ t.ereignis.titel }}</a>
+      <span class="tag tag-kat">{{ kategorie_label[t.ereignis.kategorie.value] }}</span>
+      <span class="muted small">
+        · Konfidenz: {{ t.konfidenz_quellen }} Quelle{{ "n" if t.konfidenz_quellen != 1 else "" }}
+        · Nähe: {{ (1 - t.distanz) | round(2) }}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Zu dieser Frage wurde noch kein passendes Ereignis erfasst.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

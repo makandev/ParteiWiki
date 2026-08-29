@@ -1,0 +1,92 @@
+:root {
+  --bg: #fbfbfa;
+  --fg: #1c1c1c;
+  --muted: #6b7280;
+  --line: #e4e4e7;
+  --card: #ffffff;
+  --accent: #2b5797;
+  --warn: #b45309;
+  --ok: #15803d;
+  --maxw: 880px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { background: #f1f1ef; padding: 1px 5px; border-radius: 4px; font-size: .9em; }
+
+.site-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--card);
+}
+.brand { font-weight: 700; font-size: 1.2rem; color: var(--fg); }
+.site-header nav a { margin-left: 18px; color: var(--muted); }
+.container { max-width: var(--maxw); margin: 0 auto; padding: 28px 24px 64px; }
+.site-footer {
+  border-top: 1px solid var(--line); color: var(--muted);
+  font-size: .85rem; text-align: center; padding: 20px; max-width: var(--maxw);
+  margin: 0 auto;
+}
+
+h1 { font-size: 1.9rem; margin: .2em 0 .4em; }
+h2 { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.lead { font-size: 1.05rem; color: #333; }
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+.hero { margin-bottom: 8px; }
+
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.card {
+  display: block; background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 16px 18px; color: var(--fg);
+}
+.card:hover { border-color: var(--accent); text-decoration: none; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+.card h2 { border: 0; margin: 0 0 4px; font-size: 1.1rem; }
+
+.breadcrumb { color: var(--muted); font-size: .9rem; margin-bottom: 12px; }
+.meta { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; }
+
+.tag {
+  display: inline-block; font-size: .75rem; padding: 2px 8px; border-radius: 999px;
+  background: #eef1f6; color: #334; margin-right: 6px; vertical-align: middle;
+}
+.tag-muted { background: #f1f1ef; color: var(--muted); }
+.tag-kat { background: #e8effb; color: var(--accent); }
+.status-vorlaeufig { background: #fef3c7; color: var(--warn); }
+.status-bestaetigt { background: #dcfce7; color: var(--ok); }
+.snap-original { background: #eef1f6; color: #334; }
+.snap-moeglicherweise_veraendert { background: #fef3c7; color: var(--warn); }
+.snap-bestaetigt_veraendert { background: #fee2e2; color: #b91c1c; }
+.snap-entfernt { background: #fee2e2; color: #b91c1c; }
+
+.personen, .positionen, .changelog, .quellen, .treffer { list-style: none; padding: 0; }
+.personen li, .positionen li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.diff { display: flex; gap: 18px; font-size: .9rem; margin: 4px 0; flex-wrap: wrap; }
+.diff .alt { color: var(--muted); }
+.diff .neu { color: var(--fg); }
+
+.timeline { list-style: none; padding: 0; }
+.timeline-item {
+  border-left: 3px solid var(--line); padding: 12px 0 12px 18px; margin-left: 4px;
+}
+.timeline-item.kat-amtliche_feststellung { border-left-color: var(--accent); }
+.timeline-head { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 4px; }
+.timeline-title { font-weight: 600; font-size: 1.05rem; display: inline-block; margin: 2px 0; }
+
+.konfidenz { font-size: .95rem; }
+.gegendarstellung { background: #f8fafc; border: 1px solid var(--line); padding: 10px 14px; border-radius: 8px; }
+
+table.snapshots { width: 100%; border-collapse: collapse; font-size: .9rem; }
+table.snapshots th, table.snapshots td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+
+.frageform { display: flex; gap: 8px; margin: 16px 0; }
+.frageform input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 1rem; }
+.frageform button { padding: 10px 18px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+.treffer li { padding: 8px 0; border-bottom: 1px solid var(--line); }

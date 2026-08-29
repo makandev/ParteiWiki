@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ partei.name }} – ParteiWiki{% endblock %}
+{% block content %}
+<nav class="breadcrumb"><a href="/">Übersicht</a> / {{ partei.name }}</nav>
+
+<section class="profil">
+  <h1>{{ partei.name }}</h1>
+  {% if partei.kurzbeschreibung %}<p class="lead">{{ partei.kurzbeschreibung }}</p>{% endif %}
+  <dl class="meta">
+    {% if partei.gruendungsjahr %}<dt>Gründungsjahr</dt><dd>{{ partei.gruendungsjahr }}</dd>{% endif %}
+    {% if partei.programm_url %}<dt>Programm</dt><dd><a href="{{ partei.programm_url }}" rel="noopener">offizielles Programm</a></dd>{% endif %}
+    {% if partei.letzte_aktualisierung %}<dt>Letzte Aktualisierung</dt><dd>{{ partei.letzte_aktualisierung }}</dd>{% endif %}
+  </dl>
+</section>
+
+<section>
+  <h2>Personen</h2>
+  {% if politiker %}
+  <ul class="personen">
+    {% for p in politiker %}
+    <li>
+      <strong>{{ p.name }}</strong>
+      {% if p.amt %}<span class="tag">{{ p.amt }}</span>{% endif %}
+      {% if not p.aktiv %}<span class="tag tag-muted">nicht mehr im Amt</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">Noch keine Personen erfasst.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Positions-Historie</h2>
+  {% if positionen %}
+  <ul class="positionen">
+    {% for pos in positionen %}
+    <li>
+      <strong>{{ pos.thema }}</strong>
+      {% if pos.geaendert_am %}<span class="muted">– geändert {{ pos.geaendert_am }}</span>{% endif %}
+      <div class="diff">
+        <span class="alt">vorher: {{ pos.position_alt or "—" }}</span>
+        <span class="neu">jetzt: {{ pos.position_neu or "—" }}</span>
+      </div>
+      {% if pos.quelle_url %}<a class="muted small" href="{{ pos.quelle_url }}" rel="noopener">Beleg</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">Noch keine Positionsänderungen erfasst.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Timeline: Ereignisse</h2>
+  {% if ereignisse %}
+  <ul class="timeline">
+    {% for e in ereignisse %}
+    <li class="timeline-item kat-{{ e.kategorie.value }}">
+      <div class="timeline-head">
+        <span class="tag tag-kat">{{ kategorie_label[e.kategorie.value] }}</span>
+        <span class="tag tag-status status-{{ e.status.value }}">{{ status_label[e.status.value] }}</span>
+        {% if e.datum_ereignis %}<span class="muted">{{ e.datum_ereignis }}</span>{% endif %}
+      </div>
+      <a class="timeline-title" href="/ereignisse/{{ e.id }}">{{ e.titel }}</a>
+      {% if e.beschreibung %}<p>{{ e.beschreibung }}</p>{% endif %}
+      <p class="muted small">
+        {% set n = quellen_je_ereignis[e.id] %}
+        {% if e.kategorie.value == "amtliche_feststellung" %}
+          Amtliche Feststellung – Verweis auf Originalquelle
+        {% elif n >= 1 %}
+          Konfidenz: {{ n }} unabhängige Quelle{{ "n" if n != 1 else "" }}
+        {% else %}
+          noch ohne Quelle
+        {% endif %}
+      </p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">Noch keine Ereignisse erfasst.</p>{% endif %}
+</section>
+{% endblock %}

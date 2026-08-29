@@ -1,0 +1,23 @@
+# --- Web / API ---
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+jinja2==3.1.4
+python-multipart==0.0.17
+
+# --- Datenbank ---
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+pgvector==0.3.6
+
+# --- Konfiguration / Validierung ---
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# --- Ingestion / Diff-Tracking ---
+httpx==0.28.1
+# RSS-Ingestion (späterer Ausbau, im MVP noch nicht genutzt):
+# feedparser==6.0.11
+
+# --- Tests ---
+pytest==8.3.4

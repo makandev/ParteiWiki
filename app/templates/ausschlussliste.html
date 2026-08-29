@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Ausschlussliste – ParteiWiki{% endblock %}
+{% block content %}
+<nav class="breadcrumb"><a href="/">Übersicht</a> / Ausschlussliste</nav>
+<h1>Ausgeschlossene Quellen</h1>
+<p class="lead">
+  Damit nachvollziehbar ist, warum eine Quelle nicht zählt: Satire-Portale,
+  bekannte Falschmeldungs-Seiten und nicht-journalistische Blogs ohne
+  redaktionelle Kontrolle (Redaktionelle Kriterien, Punkt 4d).
+</p>
+{% if quellen %}
+<table class="snapshots">
+  <thead><tr><th>Medium</th><th>Basis-URL</th><th>Begründung</th></tr></thead>
+  <tbody>
+  {% for q in quellen %}
+    <tr>
+      <td>{{ q.medienname }}</td>
+      <td>{{ q.url_basis or "—" }}</td>
+      <td>{{ q.ausschluss_begruendung or "—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="muted">Aktuell sind keine Quellen ausgeschlossen.</p>{% endif %}
+{% endblock %}

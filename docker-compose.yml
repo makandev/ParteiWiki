@@ -1,0 +1,20 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: parteiwiki-db
+    environment:
+      POSTGRES_USER: parteiwiki
+      POSTGRES_PASSWORD: parteiwiki
+      POSTGRES_DB: parteiwiki
+    ports:
+      - "5432:5432"
+    volumes:
+      - parteiwiki_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parteiwiki"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  parteiwiki_pgdata:

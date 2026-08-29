@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ ereignis.titel }} – ParteiWiki{% endblock %}
+{% block content %}
+<nav class="breadcrumb">
+  <a href="/">Übersicht</a> /
+  <a href="/parteien/{{ ereignis.partei_id }}">Partei</a> /
+  Ereignis
+</nav>
+
+<article class="ereignis">
+  <div class="timeline-head">
+    <span class="tag tag-kat">{{ kategorie_label[ereignis.kategorie.value] }}</span>
+    <span class="tag tag-status status-{{ ereignis.status.value }}">{{ status_label[ereignis.status.value] }}</span>
+    {% if ereignis.datum_ereignis %}<span class="muted">Ereignis am {{ ereignis.datum_ereignis }}</span>{% endif %}
+  </div>
+  <h1>{{ ereignis.titel }}</h1>
+  {% if ereignis.beschreibung %}<p class="lead">{{ ereignis.beschreibung }}</p>{% endif %}
+
+  <p class="konfidenz">
+    {% if ereignis.kategorie.value == "amtliche_feststellung" %}
+      Amtliche/gerichtliche Feststellung – gilt über die Originalquelle, nicht über die 3-Quellen-Regel.
+    {% else %}
+      Konfidenz-Score: <strong>{{ anzahl_quellen }}</strong> unabhängige Quelle{{ "n" if anzahl_quellen != 1 else "" }}
+      {% if ereignis.status.value == "vorlaeufig" %} – vorläufig, wird geprüft{% endif %}
+    {% endif %}
+  </p>
+
+  {% if ereignis.gegendarstellung_url %}
+  <p class="gegendarstellung">
+    Recht auf Gegendarstellung:
+    <a href="{{ ereignis.gegendarstellung_url }}" rel="noopener">Stellungnahme der Partei</a>
+  </p>
+  {% endif %}
+</article>
+
+<section>
+  <h2>Quellen</h2>
+  {% if ereignis.ereignis_quellen %}
+  <ul class="quellen">
+    {% for eq in ereignis.ereignis_quellen %}
+    <li>
+      <a href="{{ eq.artikel_url }}" rel="noopener">{{ eq.artikel_titel or eq.artikel_url }}</a>
+      <span class="muted small">
+        · {{ eq.quelle.medienname }}
+        · Vertrauensstufe: {{ eq.quelle.vertrauensstufe.value }}
+        · erfasst {{ eq.erfasst_am }}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">Noch keine Quellen verknüpft.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Diff-Tracking</h2>
+  {% if snapshots %}
+  <table class="snapshots">
+    <thead><tr><th>Datum</th><th>Status</th><th>Snapshot</th><th>geprüft von</th></tr></thead>
+    <tbody>
+    {% for s in snapshots %}
+      <tr>
+        <td>{{ s.snapshot_datum.strftime("%Y-%m-%d %H:%M") }}</td>
+        <td><span class="tag snap-{{ s.status.value }}">{{ snapshot_label[s.status.value] }}</span></td>
+        <td>{% if s.wayback_url %}<a href="{{ s.wayback_url }}" rel="noopener">Archiv</a>{% else %}—{% endif %}</td>
+        <td>{{ s.geprueft_von or "—" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">
+    Änderungen werden neutral als Fakt dargestellt, ohne Interpretation.
+    Automatisch erkannte Änderungen gelten erst nach manueller Prüfung als bestätigt.
+  </p>
+  {% else %}<p class="muted">Noch keine Snapshots. Cronjob starten mit <code>python -m scripts.check_diffs</code>.</p>{% endif %}
+</section>
+{% endblock %}
