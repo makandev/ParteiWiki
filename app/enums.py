@@ -70,3 +70,11 @@ class AuditAktion(str, enum.Enum):
     erstellt = "erstellt"
     geaendert = "geaendert"
     geloescht = "geloescht"
+
+
+class TagMethode(str, enum.Enum):
+    """erwaehnungen.methode – wie eine Entität erkannt wurde (Tech-Ansatz 6)."""
+
+    gazetteer = "gazetteer"  # Abgleich gegen bekannte Namen aus der DB
+    spacy = "spacy"          # spaCy-NER (optionales Backend)
+    manuell = "manuell"

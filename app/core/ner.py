@@ -1,0 +1,174 @@
+"""NER-Tagging von Politikern/Parteien (Tech-Ansatz Punkt 6).
+
+Zwei Backends hinter einem gemeinsamen Interface:
+
+* ``GazetteerTagger`` (Default) – gleicht Text gegen die in der DB bekannten
+  Politiker- und Partei-Namen ab. Läuft offline, deterministisch, keine
+  Modelle nötig. Bewusst konservativ (Wortgrenzen, volle Namen + kuratierte
+  Aliase), um Fehlzuordnungen zu vermeiden.
+* ``SpacyTagger`` (optional) – nutzt ein deutsches spaCy-Modell für PER/ORG
+  und verknüpft die Funde über den Gazetteer mit konkreten Datensätzen.
+  Wird nur aktiv, wenn spaCy + Modell installiert sind; sonst Fallback.
+
+Beide erzeugen ``Erkennung``-Objekte, die auf ``politiker_id`` und/oder
+``partei_id`` verweisen – nie freischwebende Entitäten ohne Ziel.
+"""
+from __future__ import annotations
+
+import re
+import uuid
+from dataclasses import dataclass
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.enums import TagMethode
+from app.models import Erwaehnung, Meldung, Partei, Politiker
+
+# Kuratierte Partei-Aliase (erweiterbar). Schlüssel = exakter Parteiname.
+PARTEI_ALIASE: dict[str, list[str]] = {
+    "AfD": ["Alternative für Deutschland"],
+    "CDU": ["Christlich Demokratische Union"],
+    "CSU": ["Christlich-Soziale Union"],
+    "SPD": ["Sozialdemokratische Partei Deutschlands"],
+    "FDP": ["Freie Demokratische Partei", "Freie Demokraten"],
+    "Grüne": ["Bündnis 90/Die Grünen", "Bündnis 90", "Die Grünen"],
+    "Die Linke": ["Linkspartei", "Die Linke"],
+}
+
+
+@dataclass(frozen=True)
+class Erkennung:
+    text: str
+    politiker_id: uuid.UUID | None = None
+    partei_id: uuid.UUID | None = None
+
+
+@dataclass
+class _Eintrag:
+    muster: re.Pattern
+    canonical: str
+    politiker_id: uuid.UUID | None
+    partei_id: uuid.UUID | None
+    laenge: int
+
+
+def _muster(name: str) -> re.Pattern:
+    # Wortgrenzen, Unicode-fähig (Umlaute sind Wortzeichen bei str-Patterns).
+    return re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)
+
+
+class GazetteerTagger:
+    """Erkennt bekannte Namen aus der Datenbank per Wortgrenzen-Abgleich."""
+
+    def __init__(self, eintraege: list[_Eintrag]):
+        # Längere Namen zuerst prüfen ("Alice Weidel" vor "AfD").
+        self._eintraege = sorted(eintraege, key=lambda e: e.laenge, reverse=True)
+
+    @classmethod
+    def aus_db(cls, db: Session) -> "GazetteerTagger":
+        eintraege: list[_Eintrag] = []
+        for p in db.scalars(select(Partei)).all():
+            namen = [p.name, *PARTEI_ALIASE.get(p.name, [])]
+            for n in namen:
+                if n:
+                    eintraege.append(
+                        _Eintrag(_muster(n), p.name, None, p.id, len(n))
+                    )
+        for pol in db.scalars(select(Politiker)).all():
+            if pol.name:
+                eintraege.append(
+                    _Eintrag(_muster(pol.name), pol.name, pol.id, pol.partei_id, len(pol.name))
+                )
+        return cls(eintraege)
+
+    @property
+    def methode(self) -> TagMethode:
+        return TagMethode.gazetteer
+
+    def tag(self, text: str) -> list[Erkennung]:
+        if not text:
+            return []
+        gefunden: dict[tuple, Erkennung] = {}
+        for e in self._eintraege:
+            m = e.muster.search(text)
+            if not m:
+                continue
+            schluessel = (e.politiker_id, e.partei_id)
+            if schluessel not in gefunden:
+                gefunden[schluessel] = Erkennung(
+                    text=m.group(0),
+                    politiker_id=e.politiker_id,
+                    partei_id=e.partei_id,
+                )
+        return list(gefunden.values())
+
+
+class SpacyTagger:
+    """Optionales spaCy-Backend; verknüpft PER/ORG über den Gazetteer.
+
+    Fällt still auf den reinen Gazetteer zurück, wenn spaCy/Modell fehlen.
+    """
+
+    def __init__(self, gazetteer: GazetteerTagger, modell: str = "de_core_news_sm"):
+        self._gazetteer = gazetteer
+        self._nlp = None
+        try:  # pragma: no cover - abhängig von optionaler Installation
+            import spacy
+
+            self._nlp = spacy.load(modell)
+        except Exception:
+            self._nlp = None
+
+    @property
+    def methode(self) -> TagMethode:
+        return TagMethode.spacy if self._nlp is not None else TagMethode.gazetteer
+
+    def tag(self, text: str) -> list[Erkennung]:
+        if self._nlp is None:
+            return self._gazetteer.tag(text)
+        doc = self._nlp(text)  # pragma: no cover
+        treffer: list[Erkennung] = []
+        for ent in doc.ents:  # pragma: no cover
+            if ent.label_ in {"PER", "PERSON", "ORG"}:
+                treffer.extend(self._gazetteer.tag(ent.text))
+        # Dedupe über (politiker_id, partei_id).
+        einzig: dict[tuple, Erkennung] = {}
+        for t in treffer:  # pragma: no cover
+            einzig.setdefault((t.politiker_id, t.partei_id), t)
+        return list(einzig.values())
+
+
+def tag_meldung(db: Session, meldung: Meldung, tagger: GazetteerTagger) -> list[Erwaehnung]:
+    """Erkennt Entitäten in Titel + Zusammenfassung und legt Erwähnungen an.
+
+    Idempotent pro (Meldung, Ziel): bestehende Erwähnungen werden nicht doppelt
+    angelegt. Ohne Commit – der Aufrufer committet.
+    """
+    text = " ".join(filter(None, [meldung.titel, meldung.zusammenfassung]))
+    vorhandene = {
+        (e.politiker_id, e.partei_id) for e in meldung.erwaehnungen
+    }
+    neu: list[Erwaehnung] = []
+    for erk in tagger.tag(text):
+        schluessel = (erk.politiker_id, erk.partei_id)
+        if schluessel in vorhandene:
+            continue
+        vorhandene.add(schluessel)
+        erw = Erwaehnung(
+            meldung_id=meldung.id,
+            politiker_id=erk.politiker_id,
+            partei_id=erk.partei_id,
+            text=erk.text,
+            methode=tagger.methode,
+        )
+        db.add(erw)
+        neu.append(erw)
+
+    # Primäre Partei der Meldung ableiten, falls noch nicht gesetzt.
+    if meldung.partei_id is None:
+        for erk in tagger.tag(text):
+            if erk.partei_id is not None:
+                meldung.partei_id = erk.partei_id
+                break
+    return neu

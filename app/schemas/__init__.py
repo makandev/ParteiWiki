@@ -11,6 +11,7 @@ from app.enums import (
     Ereignisstatus,
     SnapshotStatus,
     Stimme,
+    TagMethode,
     Vertrauensstufe,
 )
 
@@ -172,6 +173,12 @@ class FrageIn(BaseModel):
     top_k: int = 5
 
 
+class BelegOut(BaseModel):
+    medienname: str
+    artikel_titel: str | None = None
+    artikel_url: str
+
+
 class TrefferOut(BaseModel):
     ereignis_id: uuid.UUID
     titel: str
@@ -179,10 +186,50 @@ class TrefferOut(BaseModel):
     status: Ereignisstatus
     distanz: float
     konfidenz_quellen: int
+    belege: list[BelegOut] = Field(default_factory=list)
 
 
 class FrageAntwortOut(BaseModel):
     frage: str
     schon_besprochen: bool
     aehnliche_fragen_gefunden: int
+    antwort_text: str
     treffer: list[TrefferOut]
+
+
+# --- News-Aggregation -----------------------------------------------------
+class ErwaehnungOut(ORMModel):
+    id: uuid.UUID
+    politiker_id: uuid.UUID | None = None
+    partei_id: uuid.UUID | None = None
+    text: str
+    methode: TagMethode
+
+
+class MeldungOut(ORMModel):
+    id: uuid.UUID
+    quelle_id: uuid.UUID
+    partei_id: uuid.UUID | None = None
+    titel: str
+    url: str
+    zusammenfassung: str | None = None
+    veroeffentlicht_am: dt.datetime | None = None
+    erfasst_am: dt.datetime
+    cluster_id: uuid.UUID | None = None
+    erwaehnungen: list[ErwaehnungOut] = Field(default_factory=list)
+
+
+class ClusterMeldung(BaseModel):
+    id: uuid.UUID
+    medienname: str
+    titel: str
+    url: str
+    veroeffentlicht_am: dt.datetime | None = None
+
+
+class ClusterOut(BaseModel):
+    """Framing-Vergleich: dieselbe Story über mehrere unabhängige Quellen."""
+
+    cluster_id: uuid.UUID
+    anzahl_quellen: int
+    meldungen: list[ClusterMeldung]

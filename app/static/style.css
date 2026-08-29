@@ -90,3 +90,8 @@ table.snapshots th, table.snapshots td { text-align: left; padding: 8px 10px; bo
 .frageform input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 1rem; }
 .frageform button { padding: 10px 18px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
 .treffer li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.antwort-box { background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin: 16px 0; }
+.antwort-text { white-space: pre-wrap; font-size: .95rem; }
+.belege { margin: 6px 0 0 8px; padding-left: 14px; }
+.cluster { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; }
+.cluster-head { margin-bottom: 6px; }

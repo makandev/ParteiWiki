@@ -20,8 +20,11 @@ Entwürfen (App-Konzept, Datenmodell, Redaktionelle Kriterien).
 | **Redaktionelle Kriterien als Code** | 3-Quellen-Regel, Kategorien (Kontroverse / Amtliche Feststellung / Meinung / Reaktion), Vertrauensstufen, Ausschlussliste – in `app/core/neutralitaet.py` und den Enums. |
 | **REST-API** | FastAPI unter `/api` – Parteien, Politiker, Quellen, Ereignisse (mit automatischer Statusberechnung), Positionen, Abstimmungen, Methodik-Changelog, RAG-Fragen. Swagger unter `/docs`. |
 | **Web-Ansicht** | Server-gerenderte Profil- & Timeline-Seiten (`/`, `/parteien/{id}`, `/ereignisse/{id}`, `/quellen/ausschlussliste`, `/fragen`). |
-| **Diff-Tracking (Gerüst)** | `app/services/diff_tracking.py` + Cronjob `scripts/check_diffs.py` (Wayback-Vergleich, Hash-Diff, „möglicherweise verändert" bis zur manuellen Prüfung). |
-| **RAG (Gerüst)** | `app/services/rag.py` – Embeddings über `pgvector`, offline-fähiger Standard-Embedder, Zitations-Pflicht über `ereignis_id`. |
+| **Nachrichten-Aggregation (3.2)** | `app/services/news.py` + `scripts/ingest_news.py` – RSS/Atom-Parser (stdlib), Duplikat-Erkennung (Titel-Hash), Near-Duplicate-**Clustering** für den Framing-Vergleich derselben Story über mehrere Quellen. Feed-Liste in `app/feeds.py`. |
+| **NER-Tagging (Tech 6)** | `app/core/ner.py` – Gazetteer-Tagger (offline, gegen bekannte Politiker/Partei-Namen), optionaler spaCy-Backend. Meldungen werden automatisch verschlagwortet (`erwaehnungen`). |
+| **Externe Quellen (5)** | `app/services/abgeordnetenwatch.py` (Politiker, Bürgerfragen) und `app/services/bundestag.py` (namentliche Abstimmungen, XML). Import-Skripte `scripts/import_politicians.py`, `scripts/import_votes.py`. Parser deterministisch gegen Fixtures getestet. |
+| **Diff-Tracking + Prüfung** | `app/services/diff_tracking.py` + Cronjob `scripts/check_diffs.py` (Wayback-Vergleich, Hash-Diff). Manuelle **Vier-Augen-Prüfung** über `/api/snapshots/offen` und `/api/snapshots/{id}/pruefen` (Kriterien 4b/4c). |
+| **RAG mit Zitations-Pflicht (3.3)** | `app/services/rag.py` – Embeddings über `pgvector`, offline-fähiger Standard-Embedder (optional `sentence-transformers`), belegpflichtige Antwortsynthese (extraktiv, keine Behauptung ohne Quelle). |
 | **Audit-Log & Transparenz** | Jede Schreiboperation protokolliert (`audit_log`); Methodik-Änderungen im öffentlichen Changelog. |
 | **Seed (Pilot AfD)** | `scripts/seed.py` – Partei, Politiker, Quellen, drei Beispiel-Ereignisse (u. a. Amtliche Feststellung, bestätigte und vorläufige Kontroverse). |
 
@@ -55,11 +58,30 @@ Dann:
 - API-Doku (Swagger): <http://localhost:8000/docs>
 - Health-Check: <http://localhost:8000/health>
 
-### Wiederkehrende Jobs
+### Wiederkehrende Jobs / Ingestion
 
 ```bash
-python -m scripts.check_diffs   # Diff-Tracking (als Cronjob, z. B. täglich)
-python -m scripts.reindex       # RAG-Vektor-Index neu aufbauen
+python -m scripts.ingest_news          # RSS-Feeds abrufen & aggregieren (stündlich)
+python -m scripts.check_diffs          # Diff-Tracking gegen Wayback (täglich)
+python -m scripts.reindex              # RAG-Vektor-Index neu aufbauen
+python -m scripts.import_politicians "AfD" --party-id 1   # abgeordnetenwatch
+python -m scripts.import_votes abstimmung.xml             # Bundestag Open Data
+```
+
+> In dieser Ausführungsumgebung ist der ausgehende Netzwerkzugriff auf die
+> externen Hosts gesperrt; die Abruf-Skripte laufen deshalb erst in einer
+> Umgebung mit Netzzugang. Parsing, Dedup, Clustering, NER und Import sind
+> davon unabhängig und vollständig getestet.
+
+### Optionale, stärkere Backends
+
+```bash
+# Echtes multilinguales RAG-Embedding (384 Dim, passt zu EMBEDDING_DIM):
+pip install sentence-transformers
+export EMBEDDER=sbert
+
+# Deutsches spaCy-NER statt reinem Gazetteer:
+pip install spacy && python -m spacy download de_core_news_sm
 ```
 
 ## Tests
@@ -75,26 +97,31 @@ sind ohne laufende Datenbank testbar.
 
 ```
 app/
-  models/        ORM (Datenmodell-Entwurf 1:1)
+  models/        ORM (Datenmodell-Entwurf 1:1 + meldungen/erwaehnungen)
   enums.py       Kategorien/Status/Vertrauensstufen der Kriterien
+  feeds.py       Konfigurierte Nachrichten-Feeds (über das Spektrum)
   schemas/       Pydantic-Ein-/Ausgaben
-  core/          Neutralitäts-Regeln, Audit-Log, Embeddings
-  services/      Diff-Tracking, RAG
+  core/          Neutralitäts-Regeln, Audit-Log, Embeddings, NER
+  services/      news, diff_tracking, rag, abgeordnetenwatch, bundestag
   api/           REST-Router
-  web/           Server-gerenderte Ansichten
+  web/           Server-gerenderte Ansichten + neutrale Labels
   templates/     Jinja2-Templates
-migrations/      Alembic
-scripts/         seed / check_diffs / reindex
+migrations/      Alembic (0001 Basis, 0002 news/ner)
+scripts/         seed / ingest_news / check_diffs / reindex / import_*
 tests/
 ```
 
 ## Bewusste Grenzen dieses Fundaments
 
-- **Diff-Tracking und RAG sind Gerüste**: lauffähig und testbar, aber der
-  Standard-Embedder ist ein Offline-Platzhalter (kein echtes Sprachmodell) und
-  die Boilerplate-Erkennung im Diff-Hash ist bewusst einfach gehalten. Beides
-  ist an klar markierten Stellen austauschbar.
+- **Offline-Defaults statt schwerer Modelle**: Der Standard-Embedder und der
+  Gazetteer-NER laufen ohne Modell-Download. Für den Produktivbetrieb sind
+  `sentence-transformers` bzw. spaCy an klar markierten Stellen einschaltbar
+  (siehe oben). Die Boilerplate-Erkennung im Diff-Hash ist bewusst einfach.
+- **Externe Abrufe brauchen Netzzugang**: Die Ingestion-/Import-Skripte rufen
+  echte Endpunkte ab; Parsing, Dedup, Clustering, NER und Import sind aber
+  netz­unabhängig und getestet.
 - **Seed-Ereignisse sind teils Demonstrationsdaten** und vor einem echten
   Betrieb redaktionell durch real belegte Ereignisse zu ersetzen.
-- **Ingestion** (RSS/Bundestag-API/abgeordnetenwatch) ist im Datenmodell und in
-  den Endpunkten vorgesehen, aber noch nicht als automatischer Import gebaut.
+- **LLM-Zusammenfassungen**: Die RAG-Antwort ist bewusst extraktiv und
+  belegpflichtig (keine frei generierten Behauptungen). Ein optionaler
+  LLM-Layer mit Zitations-Zwang lässt sich darüber ergänzen.

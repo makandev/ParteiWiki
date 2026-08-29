@@ -14,30 +14,14 @@ from sqlalchemy.orm import Session
 from app.core.neutralitaet import zaehle_unabhaengige_quellen
 from app.database import get_db
 from app.enums import Vertrauensstufe
-from app.models import Ereignis, MethodikChangelog, Partei, Quelle
+from app.models import Ereignis, Meldung, MethodikChangelog, Partei, Quelle
 from app.services import rag
+from app.web.labels import KATEGORIE_LABEL, SNAPSHOT_LABEL, STATUS_LABEL
 
 router = APIRouter(tags=["web"], include_in_schema=False)
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
-# Menschenlesbare Beschriftungen für Enums.
-KATEGORIE_LABEL = {
-    "kontroverse": "Kontroverse",
-    "amtliche_feststellung": "Amtliche Feststellung",
-    "meinung": "Meinung",
-    "reaktion_zitat": "Reaktion / Zitat",
-}
-STATUS_LABEL = {
-    "vorlaeufig": "vorläufig – wird geprüft",
-    "bestaetigt": "bestätigt",
-}
-SNAPSHOT_LABEL = {
-    "original": "Original",
-    "moeglicherweise_veraendert": "möglicherweise verändert – wird geprüft",
-    "bestaetigt_veraendert": "bestätigt verändert",
-    "entfernt": "entfernt",
-}
 templates.env.globals.update(
     kategorie_label=KATEGORIE_LABEL,
     status_label=STATUS_LABEL,
@@ -111,6 +95,28 @@ def ereignis_detail(
     )
 
 
+@router.get("/news", response_class=HTMLResponse)
+def news_seite(request: Request, db: Session = Depends(get_db)):
+    from app.api.news import framing_cluster
+
+    meldungen = db.scalars(
+        select(Meldung).order_by(Meldung.erfasst_am.desc()).limit(50)
+    ).all()
+    cluster = framing_cluster(db=db, partei_id=None, limit=20)
+    mediennamen = {q.id: q.medienname for q in db.scalars(select(Quelle)).all()}
+    parteinamen = {p.id: p.name for p in db.scalars(select(Partei)).all()}
+    return templates.TemplateResponse(
+        "news.html",
+        {
+            "request": request,
+            "meldungen": meldungen,
+            "cluster": cluster,
+            "mediennamen": mediennamen,
+            "parteinamen": parteinamen,
+        },
+    )
+
+
 @router.get("/quellen/ausschlussliste", response_class=HTMLResponse)
 def ausschlussliste(request: Request, db: Session = Depends(get_db)):
     quellen = db.scalars(
@@ -129,8 +135,11 @@ def fragen_seite(
     request: Request, frage: str = Form(default=""), db: Session = Depends(get_db)
 ):
     antwort = None
+    antwort_text = ""
     if frage.strip():
         antwort = rag.frage_stellen(db, frage.strip())
+        antwort_text = rag.formuliere_antwort(antwort)
     return templates.TemplateResponse(
-        "fragen.html", {"request": request, "frage": frage, "antwort": antwort}
+        "fragen.html",
+        {"request": request, "frage": frage, "antwort": antwort, "antwort_text": antwort_text},
     )

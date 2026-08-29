@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Nachrichten – ParteiWiki{% endblock %}
+{% block content %}
+<nav class="breadcrumb"><a href="/">Übersicht</a> / Nachrichten</nav>
+<h1>Nachrichten-Aggregation</h1>
+<p class="lead">
+  Seriöse Medien, bewusst über das Spektrum verteilt. Gleiche Stories über
+  mehrere Quellen werden gruppiert – so wird das unterschiedliche Framing
+  sichtbar, ohne dass die App selbst bewertet.
+</p>
+
+{% if cluster %}
+<section>
+  <h2>Gleiche Story, mehrere Quellen (Framing-Vergleich)</h2>
+  {% for c in cluster %}
+  <div class="cluster">
+    <div class="cluster-head muted small">{{ c.anzahl_quellen }} unabhängige Quellen</div>
+    <ul class="quellen">
+      {% for m in c.meldungen %}
+      <li>
+        <span class="tag">{{ m.medienname }}</span>
+        <a href="{{ m.url }}" rel="noopener">{{ m.titel }}</a>
+        {% if m.veroeffentlicht_am %}<span class="muted small">· {{ m.veroeffentlicht_am.strftime("%Y-%m-%d") }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section>
+  <h2>Aktuelle Meldungen</h2>
+  {% if meldungen %}
+  <ul class="quellen">
+    {% for m in meldungen %}
+    <li>
+      <span class="tag">{{ mediennamen[m.quelle_id] }}</span>
+      <a href="{{ m.url }}" rel="noopener">{{ m.titel }}</a>
+      {% for e in m.erwaehnungen %}
+        {% if e.partei_id %}<span class="tag tag-kat">{{ parteinamen.get(e.partei_id, "Partei") }}</span>{% endif %}
+      {% endfor %}
+      {% if m.veroeffentlicht_am %}<span class="muted small">· {{ m.veroeffentlicht_am.strftime("%Y-%m-%d") }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Noch keine Meldungen. Ingestion starten mit
+    <code>python -m scripts.ingest_news</code>.</p>
+  {% endif %}
+</section>
+{% endblock %}

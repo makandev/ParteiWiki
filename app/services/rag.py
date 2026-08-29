@@ -51,10 +51,18 @@ def reindex_alle(db: Session) -> int:
 
 
 @dataclass
+class Beleg:
+    medienname: str
+    artikel_titel: str | None
+    artikel_url: str
+
+
+@dataclass
 class Treffer:
     ereignis: Ereignis
     distanz: float
     konfidenz_quellen: int
+    belege: list[Beleg] = field(default_factory=list)
 
 
 @dataclass
@@ -66,6 +74,50 @@ class Antwort:
     @property
     def schon_besprochen(self) -> bool:
         return bool(self.treffer)
+
+
+def _belege(ereignis: Ereignis) -> list[Beleg]:
+    return [
+        Beleg(
+            medienname=eq.quelle.medienname if eq.quelle else "unbekannt",
+            artikel_titel=eq.artikel_titel,
+            artikel_url=eq.artikel_url,
+        )
+        for eq in ereignis.ereignis_quellen
+    ]
+
+
+def formuliere_antwort(antwort: Antwort) -> str:
+    """Neutrale, belegpflichtige Antwort – keine Behauptung ohne Quelle.
+
+    Der Text wird ausschließlich aus gespeicherten, neutralen Feldern
+    zusammengesetzt (Titel, Kategorie, Status, Quellenzahl) und listet zu jedem
+    Treffer die konkreten Quellen. Es wird nichts frei generiert oder bewertet.
+    """
+    from app.web.labels import KATEGORIE_LABEL, STATUS_LABEL  # neutrale Beschriftungen, keine Zyklen
+
+    if not antwort.treffer:
+        return (
+            "Zu dieser Frage ist kein belegtes Ereignis erfasst. Es wird bewusst "
+            "keine Aussage ohne Quelle gemacht."
+        )
+    zeilen = [
+        f"Zur Frage wurden {len(antwort.treffer)} erfasste Ereignisse gefunden. "
+        "Alle Angaben stammen aus den verlinkten Quellen; die App bewertet nicht."
+    ]
+    for t in antwort.treffer:
+        e = t.ereignis
+        kat = KATEGORIE_LABEL.get(e.kategorie.value, e.kategorie.value)
+        stat = STATUS_LABEL.get(e.status.value, e.status.value)
+        if e.kategorie.value == "amtliche_feststellung":
+            konf = "amtliche Feststellung (Originalquelle)"
+        else:
+            konf = f"{t.konfidenz_quellen} unabhängige Quelle(n)"
+        zeilen.append(f"\n• {e.titel} — {kat}, Status: {stat}, Konfidenz: {konf}.")
+        for b in t.belege:
+            titel = b.artikel_titel or b.artikel_url
+            zeilen.append(f"    – Quelle: {b.medienname}: {titel} <{b.artikel_url}>")
+    return "\n".join(zeilen)
 
 
 def frage_stellen(
@@ -93,6 +145,7 @@ def frage_stellen(
                 ereignis=ereignis,
                 distanz=float(distanz),
                 konfidenz_quellen=zaehle_unabhaengige_quellen(db, ereignis),
+                belege=_belege(ereignis),
             )
         )
 

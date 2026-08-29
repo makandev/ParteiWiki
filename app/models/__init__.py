@@ -36,6 +36,7 @@ from app.enums import (
     Ereignisstatus,
     SnapshotStatus,
     Stimme,
+    TagMethode,
     Vertrauensstufe,
 )
 
@@ -287,6 +288,76 @@ class MethodikChangelog(Base):
     warum: Mapped[str | None] = mapped_column(Text)
 
 
+class Meldung(Base):
+    """12. meldungen – Nachrichten-Aggregation (Konzept 3.2).
+
+    Aggregierte Artikel seriöser Medien. ``inhalt_hash`` dient der exakten
+    Duplikat-Erkennung, ``cluster_id`` gruppiert Near-Duplicates derselben
+    Story über verschiedene Quellen (Grundlage für den Framing-Vergleich).
+    """
+
+    __tablename__ = "meldungen"
+
+    id: Mapped[uuid.UUID] = _pk()
+    quelle_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("quellen.id"), nullable=False
+    )
+    partei_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("parteien.id"))
+    titel: Mapped[str] = mapped_column(Text, nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    zusammenfassung: Mapped[str | None] = mapped_column(Text)
+    veroeffentlicht_am: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    erfasst_am: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    inhalt_hash: Mapped[str | None] = mapped_column(Text, index=True)
+    cluster_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), index=True
+    )
+    embedding = mapped_column(Vector(settings.embedding_dim), nullable=True)
+
+    quelle: Mapped["Quelle"] = relationship()
+    partei: Mapped["Partei | None"] = relationship()
+    erwaehnungen: Mapped[list["Erwaehnung"]] = relationship(
+        back_populates="meldung", cascade="all, delete-orphan"
+    )
+
+
+class Erwaehnung(Base):
+    """13. erwaehnungen – NER-Tagging (Tech-Ansatz 6).
+
+    Verknüpft eine Meldung (oder ein Ereignis) mit erkannten Politikern/
+    Parteien. ``methode`` dokumentiert, wie erkannt wurde (Gazetteer/spaCy).
+    """
+
+    __tablename__ = "erwaehnungen"
+
+    id: Mapped[uuid.UUID] = _pk()
+    meldung_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("meldungen.id", ondelete="CASCADE")
+    )
+    ereignis_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ereignisse.id", ondelete="CASCADE")
+    )
+    politiker_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("politiker.id"))
+    partei_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("parteien.id"))
+    text: Mapped[str] = mapped_column(Text, nullable=False)  # erkannte Oberflächenform
+    methode: Mapped[TagMethode] = mapped_column(
+        _enum(TagMethode), default=TagMethode.gazetteer, nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "politiker_id IS NOT NULL OR partei_id IS NOT NULL",
+            name="ck_erwaehnung_hat_ziel",
+        ),
+    )
+
+    meldung: Mapped["Meldung | None"] = relationship(back_populates="erwaehnungen")
+
+
 class AuditLog(Base):
     """11. audit_log – Nachweis bei Manipulationsvorwürfen."""
 
@@ -315,4 +386,6 @@ __all__ = [
     "PositionsHistorie",
     "MethodikChangelog",
     "AuditLog",
+    "Meldung",
+    "Erwaehnung",
 ]

@@ -13,6 +13,10 @@ class Settings(BaseSettings):
         "postgresql+psycopg://parteiwiki:parteiwiki@localhost:5432/parteiwiki"
     )
     embedding_dim: int = 384
+    # Embedder-Backend: "hashing" (offline-Default) oder "sbert" (echtes Modell).
+    embedder: str = "hashing"
+    # Für "sbert": multilinguales Modell mit 384 Dimensionen (passt zu embedding_dim).
+    embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
     wayback_api: str = "https://archive.org/wayback/available"
 
     # Redaktionelle Kriterien, Punkt 1: 3-Quellen-Regel.

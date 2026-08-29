@@ -56,12 +56,45 @@ def _tokenize(text: str) -> list[str]:
     return "".join(c.lower() if c.isalnum() else " " for c in text).split()
 
 
+class SentenceTransformerEmbedder:
+    """Echtes multilinguales Embedding via sentence-transformers.
+
+    Wird nur genutzt, wenn ``EMBEDDER=sbert`` gesetzt UND das Paket samt Modell
+    verfügbar ist. Das Standardmodell hat 384 Dimensionen und passt damit zur
+    ``embedding_dim``-Spaltenbreite; bei Modellwechsel ``EMBEDDING_DIM``
+    entsprechend anpassen und neu indexieren.
+    """
+
+    def __init__(self, modell: str, dim: int):
+        from sentence_transformers import SentenceTransformer  # lazy import
+
+        self._model = SentenceTransformer(modell)
+        self.dim = self._model.get_sentence_embedding_dimension()
+        if self.dim != dim:
+            raise ValueError(
+                f"EMBEDDING_DIM={dim} passt nicht zum Modell ({self.dim} Dim.)"
+            )
+
+    def embed(self, text: str) -> list[float]:
+        vec = self._model.encode(text, normalize_embeddings=True)
+        return [float(x) for x in vec]
+
+
 _embedder: Embedder | None = None
 
 
 def get_embedder() -> Embedder:
-    """Singleton-Zugriff auf den aktiven Embedder."""
+    """Singleton-Zugriff auf den aktiven Embedder (per Konfiguration wählbar)."""
     global _embedder
-    if _embedder is None:
-        _embedder = HashingEmbedder()
+    if _embedder is not None:
+        return _embedder
+    if settings.embedder.lower() == "sbert":
+        try:
+            _embedder = SentenceTransformerEmbedder(
+                settings.embedding_model, settings.embedding_dim
+            )
+            return _embedder
+        except Exception as exc:  # pragma: no cover - abhängig von Installation
+            print(f"[embeddings] sbert nicht verfügbar ({exc}) – Fallback auf hashing.")
+    _embedder = HashingEmbedder()
     return _embedder
