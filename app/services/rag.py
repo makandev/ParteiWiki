@@ -88,36 +88,15 @@ def _belege(ereignis: Ereignis) -> list[Beleg]:
 
 
 def formuliere_antwort(antwort: Antwort) -> str:
-    """Neutrale, belegpflichtige Antwort – keine Behauptung ohne Quelle.
+    """Belegpflichtige Antwort über den konfigurierten LLM-Layer.
 
-    Der Text wird ausschließlich aus gespeicherten, neutralen Feldern
-    zusammengesetzt (Titel, Kategorie, Status, Quellenzahl) und listet zu jedem
-    Treffer die konkreten Quellen. Es wird nichts frei generiert oder bewertet.
+    Delegiert an den Summarizer (Default: extraktiv, deterministisch, keine
+    Halluzination; optional Anthropic-SDK mit striktem Zitations-Zwang). Beide
+    Wege garantieren: keine Behauptung ohne Quelle.
     """
-    from app.web.labels import KATEGORIE_LABEL, STATUS_LABEL  # neutrale Beschriftungen, keine Zyklen
+    from app.core.llm import get_summarizer  # lazy: vermeidet Import-Zyklus
 
-    if not antwort.treffer:
-        return (
-            "Zu dieser Frage ist kein belegtes Ereignis erfasst. Es wird bewusst "
-            "keine Aussage ohne Quelle gemacht."
-        )
-    zeilen = [
-        f"Zur Frage wurden {len(antwort.treffer)} erfasste Ereignisse gefunden. "
-        "Alle Angaben stammen aus den verlinkten Quellen; die App bewertet nicht."
-    ]
-    for t in antwort.treffer:
-        e = t.ereignis
-        kat = KATEGORIE_LABEL.get(e.kategorie.value, e.kategorie.value)
-        stat = STATUS_LABEL.get(e.status.value, e.status.value)
-        if e.kategorie.value == "amtliche_feststellung":
-            konf = "amtliche Feststellung (Originalquelle)"
-        else:
-            konf = f"{t.konfidenz_quellen} unabhängige Quelle(n)"
-        zeilen.append(f"\n• {e.titel} — {kat}, Status: {stat}, Konfidenz: {konf}.")
-        for b in t.belege:
-            titel = b.artikel_titel or b.artikel_url
-            zeilen.append(f"    – Quelle: {b.medienname}: {titel} <{b.artikel_url}>")
-    return "\n".join(zeilen)
+    return get_summarizer().summarize(antwort)
 
 
 def frage_stellen(

@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.core.audit import audit
 from app.core.embeddings import get_embedder
-from app.core.ner import GazetteerTagger, tag_meldung
+from app.core.ner import GazetteerTagger, tag_meldung, tagger_fuer
 from app.enums import AuditAktion, Vertrauensstufe
 from app.feeds import Feed
 from app.models import Meldung, Quelle
@@ -186,7 +186,7 @@ def ingest_feed_inhalt(
 
 def fetch_and_ingest(db: Session, feeds: list[Feed]) -> dict[str, int]:
     """Lädt und verarbeitet alle Feeds. Rückgabe: {medienname: neue Meldungen}."""
-    tagger = GazetteerTagger.aus_db(db)
+    tagger = tagger_fuer(db)
     ergebnis: dict[str, int] = {}
     with httpx.Client(
         headers={"User-Agent": "ParteiWiki-NewsIngest/0.1"}, timeout=20,

@@ -12,11 +12,22 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+psycopg://parteiwiki:parteiwiki@localhost:5432/parteiwiki"
     )
-    embedding_dim: int = 384
-    # Embedder-Backend: "hashing" (offline-Default) oder "sbert" (echtes Modell).
-    embedder: str = "hashing"
-    # Für "sbert": multilinguales Modell mit 384 Dimensionen (passt zu embedding_dim).
+    # Vektor-Dimension. Muss zum aktiven Embedder passen:
+    #   spacy_vectors (de_core_news_md) = 300, sbert (MiniLM) = 384, hashing = frei.
+    embedding_dim: int = 300
+    # Embedder-Backend: "spacy_vectors" (echte Wortvektoren, offline),
+    # "sbert" (Transformer, benötigt Modell-Hub) oder "hashing" (ohne Modell).
+    embedder: str = "spacy_vectors"
+    # Für "sbert": multilinguales Modell mit 384 Dimensionen.
     embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
+    # NER-Backend: "spacy" (Hybrid mit Gazetteer) oder "gazetteer" (ohne Modell).
+    ner: str = "spacy"
+    # spaCy-Modell MIT Wortvektoren (für NER und spacy_vectors-Embeddings).
+    spacy_model: str = "de_core_news_md"
+    # LLM-Layer für die Antwortsynthese: "extractive" (offline, deterministisch)
+    # oder "anthropic" (offizielles SDK, benötigt Anmeldedaten). Beide zitieren.
+    llm: str = "extractive"
+    llm_model: str = "claude-opus-5"
     wayback_api: str = "https://archive.org/wayback/available"
 
     # Redaktionelle Kriterien, Punkt 1: 3-Quellen-Regel.

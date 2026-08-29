@@ -16,15 +16,22 @@ pydantic-settings==2.6.1
 
 # --- Ingestion / Diff-Tracking ---
 httpx==0.28.1
-# RSS-Ingestion (späterer Ausbau, im MVP noch nicht genutzt):
-# feedparser==6.0.11
+
+# --- NER + echte Embeddings (scharfer Default) ---
+# spaCy stellt sowohl das NER-Backend als auch die Wortvektor-Embeddings.
+# Das Modell MIT Vektoren (300 Dim) separat installieren – siehe README:
+#   python -m spacy download de_core_news_md
+# Ohne Modell fällt die App automatisch auf Gazetteer-NER + Hashing-Embeddings
+# zurück (funktionsfähig, aber ohne echte Semantik).
+spacy==3.8.16
+numpy>=1.26
 
 # --- Tests ---
 pytest==8.3.4
 
-# --- Optionale Backends (nicht für den Offline-Default nötig) ---
-# Echtes multilinguales RAG-Embedding (EMBEDDER=sbert):
+# --- Optionale, stärkere Backends ---
+# Transformer-Embeddings statt spaCy-Vektoren (EMBEDDER=sbert, EMBEDDING_DIM=384;
+# benötigt Zugriff auf den Modell-Hub):
 # sentence-transformers==3.3.1
-# Deutsches NER-Modell für den SpacyTagger:
-# spacy==3.8.2
-#   python -m spacy download de_core_news_sm
+# LLM-gestützte Antwortsynthese mit Zitations-Zwang (LLM=anthropic, Anmeldedaten nötig):
+# anthropic>=0.40

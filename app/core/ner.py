@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.enums import TagMethode
 from app.models import Erwaehnung, Meldung, Partei, Politiker
 
@@ -127,10 +128,15 @@ class SpacyTagger:
     def tag(self, text: str) -> list[Erkennung]:
         if self._nlp is None:
             return self._gazetteer.tag(text)
+        # Hybrid: Der Gazetteer über den ganzen Text garantiert die Trefferquote
+        # bekannter Namen/Aliase unabhängig von spaCys Entity-Grenzen; spaCy
+        # ergänzt kontextuelle Personen-/Org-Erwähnungen. So ist der spaCy-Modus
+        # nie schlechter als der reine Gazetteer.
+        treffer: list[Erkennung] = list(self._gazetteer.tag(text))  # pragma: no cover
         doc = self._nlp(text)  # pragma: no cover
-        treffer: list[Erkennung] = []
+        relevante = {"PER", "PERSON", "ORG", "MISC"}  # Parteien = MISC im dt. Modell
         for ent in doc.ents:  # pragma: no cover
-            if ent.label_ in {"PER", "PERSON", "ORG"}:
+            if ent.label_ in relevante:
                 treffer.extend(self._gazetteer.tag(ent.text))
         # Dedupe über (politiker_id, partei_id).
         einzig: dict[tuple, Erkennung] = {}
@@ -139,7 +145,15 @@ class SpacyTagger:
         return list(einzig.values())
 
 
-def tag_meldung(db: Session, meldung: Meldung, tagger: GazetteerTagger) -> list[Erwaehnung]:
+def tagger_fuer(db: Session):
+    """Liefert den konfigurierten Tagger (Gazetteer oder spaCy) über der DB."""
+    gazetteer = GazetteerTagger.aus_db(db)
+    if settings.ner.lower() == "spacy":
+        return SpacyTagger(gazetteer, settings.spacy_model)
+    return gazetteer
+
+
+def tag_meldung(db: Session, meldung: Meldung, tagger) -> list[Erwaehnung]:
     """Erkennt Entitäten in Titel + Zusammenfassung und legt Erwähnungen an.
 
     Idempotent pro (Meldung, Ziel): bestehende Erwähnungen werden nicht doppelt

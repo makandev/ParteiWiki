@@ -80,6 +80,37 @@ class SentenceTransformerEmbedder:
         return [float(x) for x in vec]
 
 
+class SpacyVectorEmbedder:
+    """Echte semantische Embeddings aus spaCy-Wortvektoren (offline).
+
+    Nutzt ein spaCy-Modell MIT Vektoren (z. B. ``de_core_news_md`` = 300 Dim).
+    Der Dokumentvektor ist das (von spaCy gemittelte) Wortvektor-Mittel,
+    anschließend L2-normalisiert. Funktioniert vollständig ohne externe Dienste
+    und ist damit auch dort einsetzbar, wo Modell-Hubs gesperrt sind.
+    """
+
+    def __init__(self, modell: str, dim: int):
+        import numpy as np  # lazy
+        import spacy
+
+        self._np = np
+        self._nlp = spacy.load(modell, disable=["tagger", "parser", "ner", "lemmatizer"])
+        if not self._nlp.vocab.vectors_length:
+            raise ValueError(f"spaCy-Modell '{modell}' hat keine Wortvektoren.")
+        self.dim = self._nlp.vocab.vectors_length
+        if self.dim != dim:
+            raise ValueError(
+                f"EMBEDDING_DIM={dim} passt nicht zum Modell ({self.dim} Dim.)"
+            )
+
+    def embed(self, text: str) -> list[float]:
+        vec = self._nlp(text or "").vector
+        norm = float(self._np.linalg.norm(vec))
+        if norm > 0:
+            vec = vec / norm
+        return [float(x) for x in vec]
+
+
 _embedder: Embedder | None = None
 
 
@@ -88,13 +119,17 @@ def get_embedder() -> Embedder:
     global _embedder
     if _embedder is not None:
         return _embedder
-    if settings.embedder.lower() == "sbert":
-        try:
+    backend = settings.embedder.lower()
+    try:
+        if backend == "sbert":
             _embedder = SentenceTransformerEmbedder(
                 settings.embedding_model, settings.embedding_dim
             )
             return _embedder
-        except Exception as exc:  # pragma: no cover - abhängig von Installation
-            print(f"[embeddings] sbert nicht verfügbar ({exc}) – Fallback auf hashing.")
+        if backend in ("spacy", "spacy_vectors"):
+            _embedder = SpacyVectorEmbedder(settings.spacy_model, settings.embedding_dim)
+            return _embedder
+    except Exception as exc:  # pragma: no cover - abhängig von Installation
+        print(f"[embeddings] Backend '{backend}' nicht verfügbar ({exc}) – Fallback auf hashing.")
     _embedder = HashingEmbedder()
     return _embedder
