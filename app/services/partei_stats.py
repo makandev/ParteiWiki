@@ -39,24 +39,40 @@ def aktuelle_umfrage(db: Session) -> dict[uuid.UUID, Kennzahl]:
     return neueste
 
 
-def mdb_zahl_je_partei(db: Session) -> dict[uuid.UUID, int]:
-    """Anzahl aktiver Abgeordneter (amt enthält 'MdB') je Partei."""
+def mdb_zahl_je_partei(
+    db: Session, *, partei_id: uuid.UUID | None = None
+) -> dict[uuid.UUID, int]:
+    """Anzahl aktiver Abgeordneter (amt enthält 'MdB') je Partei.
+
+    Mit ``partei_id`` nur diese eine Partei (spart auf der Profil-Seite den
+    Scan über alle Parteien)."""
+    stmt = select(Politiker).where(Politiker.aktiv.is_(True))
+    if partei_id is not None:
+        stmt = stmt.where(Politiker.partei_id == partei_id)
     ergebnis: dict[uuid.UUID, int] = {}
-    for p in db.scalars(select(Politiker).where(Politiker.aktiv.is_(True))).all():
+    for p in db.scalars(stmt).all():
         if p.amt and "MdB" in p.amt:
             ergebnis[p.partei_id] = ergebnis.get(p.partei_id, 0) + 1
     return ergebnis
 
 
-def news_zahl_je_partei(db: Session, *, tage: int = 30) -> dict[uuid.UUID, int]:
-    """Anzahl erfasster Meldungen je Partei im Zeitfenster (über Erwähnungen)."""
-    seit = dt.datetime.now() - dt.timedelta(days=tage)
-    ergebnis: dict[uuid.UUID, int] = {}
-    for partei_id, anzahl in db.execute(
+def news_zahl_je_partei(
+    db: Session, *, tage: int = 30, partei_id: uuid.UUID | None = None
+) -> dict[uuid.UUID, int]:
+    """Anzahl erfasster Meldungen je Partei im Zeitfenster (über Erwähnungen).
+
+    ``erfasst_am`` ist zeitzonenbewusst (timestamptz); der Vergleich nutzt daher
+    eine UTC-bewusste Untergrenze. Mit ``partei_id`` nur diese eine Partei."""
+    seit = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=tage)
+    stmt = (
         select(Erwaehnung.partei_id, func.count(func.distinct(Meldung.id)))
         .join(Meldung, Meldung.id == Erwaehnung.meldung_id)
         .where(Erwaehnung.partei_id.is_not(None), Meldung.erfasst_am >= seit)
         .group_by(Erwaehnung.partei_id)
-    ).all():
-        ergebnis[partei_id] = anzahl
+    )
+    if partei_id is not None:
+        stmt = stmt.where(Erwaehnung.partei_id == partei_id)
+    ergebnis: dict[uuid.UUID, int] = {}
+    for pid, anzahl in db.execute(stmt).all():
+        ergebnis[pid] = anzahl
     return ergebnis

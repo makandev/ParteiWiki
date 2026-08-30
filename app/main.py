@@ -38,19 +38,22 @@ async def _mdb_sync_beim_start() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startet optional den Auto-Ingestion-Scheduler (macht die Seite live)."""
-    task = None
+    # Referenzen halten: der Event-Loop hält nur schwache Referenzen auf Tasks,
+    # ein fire-and-forget-Task könnte sonst mitten im Lauf vom GC eingesammelt
+    # werden.
+    tasks: list[asyncio.Task] = []
     if settings.mdb_sync_beim_start:
-        asyncio.create_task(_mdb_sync_beim_start())
+        tasks.append(asyncio.create_task(_mdb_sync_beim_start()))
     if settings.ingest_interval_minutes > 0:
         from app.services.scheduler import ingest_loop
 
-        task = asyncio.create_task(ingest_loop())
+        tasks.append(asyncio.create_task(ingest_loop()))
         print(f"[app] Auto-Ingestion aktiv (alle {settings.ingest_interval_minutes} min).")
     try:
         yield
     finally:
-        if task is not None:
-            task.cancel()
+        for t in tasks:
+            t.cancel()
 
 
 app = FastAPI(

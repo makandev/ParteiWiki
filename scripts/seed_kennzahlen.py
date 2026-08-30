@@ -18,8 +18,9 @@ import datetime as dt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.audit import audit
 from app.database import SessionLocal
-from app.enums import Kennzahlart
+from app.enums import AuditAktion, Kennzahlart
 from app.models import Kennzahl, Partei
 
 QUELLE = "Bundeswahlleiterin"
@@ -76,11 +77,15 @@ def ensure_kennzahlen(db: Session) -> int:
                 )
             )
             if vorhanden is None:
-                db.add(Kennzahl(
+                k = Kennzahl(
                     partei_id=partei.id, art=art, wert=prozent, einheit="%",
                     zeitpunkt=datum, label=label, quelle_url=QUELLE_URL,
                     quelle_name=QUELLE, vorlaeufig=vorlaeufig, bemerkung=bemerkung,
-                ))
+                )
+                db.add(k)
+                db.flush()
+                audit(db, tabelle="kennzahlen", datensatz_id=k.id,
+                      aktion=AuditAktion.erstellt, akteur="seed:kennzahlen")
                 neu += 1
             else:
                 vorhanden.wert = prozent

@@ -119,8 +119,10 @@ def partei_profil(
     steckbrief = {
         "wahl": _wahl[0] if _wahl else None,
         "umfrage": _umfrage[0] if _umfrage else None,
-        "mdb": partei_stats.mdb_zahl_je_partei(db).get(partei_id, 0),
-        "news_30t": partei_stats.news_zahl_je_partei(db, tage=30).get(partei_id, 0),
+        "mdb": partei_stats.mdb_zahl_je_partei(db, partei_id=partei_id).get(partei_id, 0),
+        "news_30t": partei_stats.news_zahl_je_partei(
+            db, tage=30, partei_id=partei_id
+        ).get(partei_id, 0),
     }
     _quellen = db.scalars(select(Quelle)).all()
     mediennamen = {q.id: q.medienname for q in _quellen}

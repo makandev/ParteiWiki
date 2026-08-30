@@ -14,7 +14,8 @@ import httpx
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.enums import Kennzahlart
+from app.core.audit import audit
+from app.enums import AuditAktion, Kennzahlart
 from app.models import Kennzahl, Partei
 from app.services.dawum import DawumClient, UmfrageRoh
 
@@ -22,7 +23,11 @@ QUELLE_URL = "https://dawum.de/Bundestag/"
 
 
 def import_umfrage(db: Session, roh: UmfrageRoh) -> dict:
-    """Ersetzt die aktuelle Umfrage-Kennzahl je Partei durch die neue Erhebung."""
+    """Ersetzt den aktuellen Umfrage-Stand durch die neue Erhebung.
+
+    Eine Sonntagsfrage ist ein konsistenter Snapshot (ein Institut, ein Datum).
+    Deshalb wird der komplette bisherige Umfrage-Stand einmalig entfernt und neu
+    gesetzt – so bleiben keine veralteten Werte einzelner Parteien zurück."""
     if not roh.ergebnisse or not roh.datum:
         return {"_status": "keine Umfragedaten"}
     try:
@@ -33,26 +38,27 @@ def import_umfrage(db: Session, roh: UmfrageRoh) -> dict:
     parteien = {p.name: p for p in db.scalars(select(Partei)).all()}
     quelle_name = f"DAWUM / {roh.institut}" if roh.institut else "DAWUM"
     label = f"Umfrage {roh.institut}".strip() if roh.institut else "Umfrage"
+
+    # Kompletten bisherigen Umfrage-Stand ersetzen (kein Rest veralteter Werte).
+    db.execute(delete(Kennzahl).where(Kennzahl.art == Kennzahlart.umfrage_bund))
+
     neu = 0
     for name, prozent in roh.ergebnisse.items():
         partei = parteien.get(name)
         if partei is None:
             continue
-        # Nur aktuellen Stand halten: vorhandene Umfrage-Werte der Partei ersetzen.
-        db.execute(
-            delete(Kennzahl).where(
-                Kennzahl.partei_id == partei.id,
-                Kennzahl.art == Kennzahlart.umfrage_bund,
-            )
-        )
         bemerkung = "Unionswert (CDU/CSU gemeinsam)" if (
             roh.union_hinweis and name == "CDU"
         ) else None
-        db.add(Kennzahl(
+        k = Kennzahl(
             partei_id=partei.id, art=Kennzahlart.umfrage_bund, wert=prozent,
             einheit="%", zeitpunkt=datum, label=label, quelle_url=QUELLE_URL,
             quelle_name=quelle_name, vorlaeufig=False, bemerkung=bemerkung,
-        ))
+        )
+        db.add(k)
+        db.flush()
+        audit(db, tabelle="kennzahlen", datensatz_id=k.id,
+              aktion=AuditAktion.erstellt, akteur="umfrage-sync:dawum")
         neu += 1
     db.commit()
     return {"_status": "ok", "parteien": neu, "datum": roh.datum, "institut": roh.institut}

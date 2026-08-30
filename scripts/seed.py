@@ -21,7 +21,11 @@ def _quelle(db, medienname, url_basis, stufe=Vertrauensstufe.serioes,
             begruendung=None, spektrum=None) -> int:
     """Upsert einer Quelle: legt an oder aktualisiert Stufe/Spektrum/Begründung.
 
-    Rückgabe: 1 wenn neu angelegt, sonst 0 (Aktualisierung zählt nicht als neu).
+    Bewusst code-kanonisch: die kuratierte Feed-Liste (``app/feeds.py``) ist die
+    redaktionelle Quelle der Wahrheit und wird beim Deploy durchgesetzt – so gilt
+    dieselbe Einordnung für alle. Kuratierungs-Änderungen (z. B. eine Quelle auf
+    ``ausgeschlossen`` setzen) gehören daher in ``feeds.py``, nicht in
+    Laufzeit-Overrides. Rückgabe: 1 wenn neu angelegt, sonst 0.
     """
     q = db.scalar(select(Quelle).where(Quelle.medienname == medienname))
     if q is None:

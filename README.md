@@ -16,10 +16,13 @@ Entwürfen (App-Konzept, Datenmodell, Redaktionelle Kriterien).
 
 | Baustein | Umsetzung |
 |----------|-----------|
-| **Datenmodell** | Alle 11 Tabellen des Entwurfs als SQLAlchemy-Modelle (`app/models`), plus Vektor-Tabelle für RAG. Postgres + `pgvector`. |
+| **Datenmodell** | Alle Tabellen des Entwurfs als SQLAlchemy-Modelle (`app/models`) inkl. `meldungen`/`erwaehnungen` (News+NER) und `kennzahlen` (Zahlen über Zeit), plus Vektor-Tabelle für RAG. Postgres + `pgvector`. |
 | **Redaktionelle Kriterien als Code** | 3-Quellen-Regel, Kategorien (Kontroverse / Amtliche Feststellung / Meinung / Reaktion), Vertrauensstufen, Ausschlussliste – in `app/core/neutralitaet.py` und den Enums. |
 | **REST-API** | FastAPI unter `/api` – Parteien, Politiker, Quellen, Ereignisse (mit automatischer Statusberechnung), Positionen, Abstimmungen, Methodik-Changelog, RAG-Fragen. Swagger unter `/docs`. |
-| **Web-Ansicht** | Server-gerenderte Profil- & Timeline-Seiten (`/`, `/parteien/{id}`, `/ereignisse/{id}`, `/quellen/ausschlussliste`, `/fragen`). |
+| **Web-Ansicht** | Server-gerenderte Seiten: Übersicht mit Wahlergebnis-Karten (`/`), Partei-Profil mit Steckbrief + Kennzahlen (`/parteien/{id}`), Partei-Vergleich (`/vergleich`), Medien-Transparenz (`/medien`), Nachrichten (`/news`), Ereignis-Detail (`/ereignisse/{id}`), Fragen (`/fragen`). |
+| **Kennzahlen über Zeit** | `kennzahlen`-Tabelle + `scripts/seed_kennzahlen.py`: Bundestagswahl-Ergebnisse 2021/2025 je Partei (Quelle Bundeswahlleiterin), quellenpflichtig. Anzeige als Steckbrief, Vergleich und Verlauf. |
+| **Echte MdBs & Umfragen (live)** | `app/services/mandate_sync.py` (abgeordnetenwatch-Mandate, alle Parteien, Auto-Periode) und `app/services/dawum.py`+`umfrage_sync.py` (offene Umfrage-DB DAWUM). Laufen auf dem Server automatisch beim Start und im Ingestion-Intervall; manuell via `scripts/import_mdb.py` / `scripts/import_umfragen.py`. |
+| **Medien-Transparenz** | `/medien`: politische Orientierung + Vertrauensstufe je Quelle, inkl. bewusst zur Aufklärung gezeigter Satire-/Fake-/Propaganda-Ausschlussliste mit Begründung. |
 | **Nachrichten-Aggregation (3.2)** | `app/services/news.py` + `scripts/ingest_news.py` – RSS/Atom-Parser (stdlib), Duplikat-Erkennung (Titel-Hash), Near-Duplicate-**Clustering** für den Framing-Vergleich derselben Story über mehrere Quellen. Feed-Liste in `app/feeds.py`. |
 | **NER-Tagging (Tech 6)** | `app/core/ner.py` – **spaCy-Hybrid** (deutsches Modell + Gazetteer) als scharfer Default, reiner Gazetteer als offline-Fallback. Meldungen werden automatisch verschlagwortet (`erwaehnungen`). |
 | **Externe Quellen (5)** | `app/services/abgeordnetenwatch.py` (Politiker, Bürgerfragen) und `app/services/bundestag.py` (namentliche Abstimmungen, XML). Import-Skripte `scripts/import_politicians.py`, `scripts/import_votes.py`. Parser deterministisch gegen Fixtures getestet. |
@@ -27,7 +30,7 @@ Entwürfen (App-Konzept, Datenmodell, Redaktionelle Kriterien).
 | **RAG mit Zitations-Pflicht (3.3)** | `app/services/rag.py` – **echte semantische Embeddings** (spaCy-Wortvektoren, 300 Dim) über `pgvector`; optional Transformer (`sbert`) oder Hashing-Fallback. |
 | **LLM-Layer (3.3/6)** | `app/core/llm.py` – belegpflichtige Antwortsynthese: **extraktiv** (deterministisch, keine Halluzination) als Default, optional **Anthropic-SDK** (`claude-opus-5`, strikter Zitations-Zwang) via `LLM=anthropic`. |
 | **Audit-Log & Transparenz** | Jede Schreiboperation protokolliert (`audit_log`); Methodik-Änderungen im öffentlichen Changelog. |
-| **Seed (Pilot AfD)** | `scripts/seed.py` – Partei, Politiker, Quellen, drei Beispiel-Ereignisse (u. a. Amtliche Feststellung, bestätigte und vorläufige Kontroverse). |
+| **Seed (schlank)** | `scripts/seed.py` – alle Parteien als Stammdaten, AfD-Pilot-Politiker, kuratierte Quellenliste (mit Orientierung), Wahlergebnis-Kennzahlen. **Keine erfundenen Ereignisse** – Inhalte entstehen aus Ingestion und geprüften Quellen. |
 
 ## Schnellstart
 
