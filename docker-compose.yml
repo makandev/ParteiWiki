@@ -1,39 +1,57 @@
-services:
-  db:
-    image: pgvector/pgvector:pg16
-    container_name: parteiwiki-db
-    environment:
-      POSTGRES_USER: parteiwiki
-      POSTGRES_PASSWORD: parteiwiki
-      POSTGRES_DB: parteiwiki
-    ports:
-      - "5432:5432"
-    volumes:
-      - parteiwiki_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U parteiwiki"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+#!/usr/bin/env bash
+# Startsequenz des App-Containers: auf DB warten, migrieren, ggf. seeden, starten.
+set -euo pipefail
 
-  web:
-    build: .
-    container_name: parteiwiki-web
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql+psycopg://parteiwiki:parteiwiki@db:5432/parteiwiki
-      # Scharfe Backends (Default). Für sbert stattdessen EMBEDDER=sbert + EMBEDDING_DIM=384.
-      EMBEDDER: spacy_vectors
-      EMBEDDING_DIM: "300"
-      NER: spacy
-      SPACY_MODEL: de_core_news_md
-      LLM: extractive
-      ENV: production
-      SEED_ON_START: "1"
-    ports:
-      - "8000:8000"
+echo "[entrypoint] warte auf die Datenbank ..."
+python - <<'PY'
+import time
+from sqlalchemy import create_engine, text
+from app.config import settings  # normalisiert postgres:// -> postgresql+psycopg://
 
-volumes:
-  parteiwiki_pgdata:
+url = settings.database_url
+for versuch in range(60):
+    try:
+        with create_engine(url).connect() as c:
+            c.execute(text("SELECT 1"))
+        print("[entrypoint] DB erreichbar.")
+        break
+    except Exception as exc:
+        print(f"[entrypoint] DB noch nicht bereit ({exc}); neuer Versuch ...")
+        time.sleep(2)
+else:
+    raise SystemExit("[entrypoint] DB nach 120s nicht erreichbar.")
+PY
+
+# pgvector-Extension sicherstellen (idempotent; benötigt ausreichende Rechte).
+python - <<'PY'
+from sqlalchemy import create_engine, text
+from app.config import settings
+with create_engine(settings.database_url).connect() as c:
+    c.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+    c.commit()
+    print("[entrypoint] pgvector bereit.")
+PY
+
+echo "[entrypoint] Migrationen ..."
+alembic upgrade head
+
+# Seed nur, wenn noch keine Partei existiert (idempotenter Erststart).
+if [ "${SEED_ON_START:-1}" = "1" ]; then
+  python - <<'PY'
+from sqlalchemy import select
+from app.database import SessionLocal
+from app.models import Partei
+db = SessionLocal()
+leer = db.scalar(select(Partei).limit(1)) is None
+db.close()
+if leer:
+    print("[entrypoint] leere DB -> Seed (Pilot AfD).")
+    from scripts.seed import seed
+    seed()
+else:
+    print("[entrypoint] Daten vorhanden -> Seed übersprungen.")
+PY
+fi
+
+echo "[entrypoint] starte uvicorn ..."
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000
