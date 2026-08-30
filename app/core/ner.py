@@ -36,6 +36,8 @@ PARTEI_ALIASE: dict[str, list[str]] = {
     "FDP": ["Freie Demokratische Partei", "Freie Demokraten"],
     "Grüne": ["Bündnis 90/Die Grünen", "Bündnis 90", "Die Grünen"],
     "Die Linke": ["Linkspartei", "Die Linke"],
+    "BSW": ["Bündnis Sahra Wagenknecht"],
+    "Freie Wähler": ["FREIE WÄHLER", "Freie Wähler"],
 }
 
 # Nachnamen, die zugleich gängige Wörter/Vornamen sind, werden NICHT als
