@@ -15,16 +15,20 @@ from app.web.routes import router as web_router
 
 
 async def _mdb_sync_beim_start() -> None:
-    """Einmaliger MdB-Abgleich beim Start (Thread, netzabhängig, fail-soft)."""
+    """Einmaliger MdB- und Umfrage-Abgleich beim Start (Thread, fail-soft)."""
     def _lauf() -> None:
         from app.database import SessionLocal
         from app.services.mandate_sync import sync_mdb_still
+        from app.services.umfrage_sync import sync_umfragen_still
 
         db = SessionLocal()
         try:
             ergebnis = sync_mdb_still(db)
             if ergebnis is not None:
                 print(f"[app] MdB-Abgleich: {ergebnis}")
+            umfrage = sync_umfragen_still(db)
+            if umfrage is not None:
+                print(f"[app] Umfrage-Abgleich: {umfrage}")
         finally:
             db.close()
 

@@ -111,3 +111,8 @@ table.snapshots th, table.snapshots td { text-align: left; padding: 8px 10px; bo
 .trend-auf { color: var(--ok); font-weight: 600; }
 .trend-ab { color: #b91c1c; font-weight: 600; }
 details > summary { cursor: pointer; padding: 6px 0; }
+/* Steckbrief: kompakte Kernzahlen je Partei. */
+.steckbrief { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin: 8px 0 4px; }
+.sb-item { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; text-align: center; }
+.sb-wert { display: block; font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+.sb-label { display: block; font-size: .8rem; color: var(--muted); margin-top: 2px; }

@@ -198,6 +198,37 @@ def test_ensure_kennzahlen_idempotent_und_belegt(db):
     assert anzahl_nachher == anzahl_vorher
 
 
+# --- Umfrage-Import (DAWUM) über Partei-Normalisierung -------------------
+def test_import_umfrage_haelt_aktuellen_stand(db):
+    from app.enums import Kennzahlart
+    from app.models import Kennzahl
+    from app.services.dawum import UmfrageRoh
+    from app.services.umfrage_sync import import_umfrage
+
+    afd = _partei_or_create(db, "AfD")
+    _partei_or_create(db, "SPD")
+    db.flush()
+
+    import_umfrage(db, UmfrageRoh(
+        datum="2025-08-25", institut="INSA",
+        ergebnisse={"AfD": 21.0, "SPD": 16.0},
+    ))
+    k = db.scalar(select(Kennzahl).where(
+        Kennzahl.partei_id == afd.id, Kennzahl.art == Kennzahlart.umfrage_bund
+    ))
+    assert k is not None and k.wert == 21.0 and k.quelle_url
+
+    # Neuere Umfrage ersetzt den Wert (nur aktueller Stand, kein Duplikat).
+    import_umfrage(db, UmfrageRoh(
+        datum="2025-09-01", institut="Forsa",
+        ergebnisse={"AfD": 22.5, "SPD": 15.0},
+    ))
+    alle = db.scalars(select(Kennzahl).where(
+        Kennzahl.partei_id == afd.id, Kennzahl.art == Kennzahlart.umfrage_bund
+    )).all()
+    assert len(alle) == 1 and alle[0].wert == 22.5
+
+
 # --- Vergleich-Seite: Wahlergebnisse + Trend nebeneinander ---------------
 def test_vergleich_seite_zeigt_wahlergebnisse(db, client):
     from scripts.seed_kennzahlen import ensure_kennzahlen

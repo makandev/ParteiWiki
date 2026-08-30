@@ -22,16 +22,21 @@ uvicorn app.main:app --reload
 pytest                                      # Unit-Tests; DB-Tests laufen bei erreichbarer DB
 ```
 Ingestion/Jobs: `scripts.ingest_news`, `scripts.check_diffs`, `scripts.reindex`,
-`scripts.import_politicians`, `scripts.import_votes`.
+`scripts.import_politicians`, `scripts.import_votes`, `scripts.import_mdb`
+(echte Abgeordnete), `scripts.import_umfragen` (DAWUM-Sonntagsfrage),
+`scripts.seed_kennzahlen` (Wahlergebnisse). MdB-/Umfrage-Abgleich läuft auf dem
+Server zusätzlich automatisch (Start-Job + Intervall).
 
 ## Architektur (Kurz)
 - `app/models/` – ORM 1:1 zum Datenmodell + `meldungen`/`erwaehnungen`.
 - `app/enums.py` – Kategorien/Status/Vertrauensstufen der Kriterien.
 - `app/core/` – `neutralitaet` (3-Quellen-Regel), `audit`, `embeddings`, `ner`,
   `llm`, `spacy_loader` (gecachtes, geteiltes spaCy-Modell).
-- `app/services/` – `news`, `diff_tracking`, `rag`, `abgeordnetenwatch`, `bundestag`.
-- `app/api/` – Router; `app/web/` – Views + neutrale Labels.
-- `migrations/` – 0001 Basis, 0002 news/ner, 0003 HNSW-Vektor-Indizes.
+- `app/services/` – `news`, `diff_tracking`, `rag`, `abgeordnetenwatch`, `bundestag`,
+  `mandate_sync` (MdBs), `dawum`/`umfrage_sync` (Umfragen), `partei_stats` (Aggregate).
+- `app/api/` – Router; `app/web/` – Views + neutrale Labels (Vergleich, Medien, Kennzahlen).
+- `migrations/` – 0001 Basis, 0002 news/ner, 0003 HNSW-Vektor-Indizes,
+  0004 quellen.spektrum, 0005 kennzahlen (Zahlen über Zeit, quellenpflichtig).
 
 ## Konventionen
 - Deutschsprachige Bezeichner/Docstrings (Domänensprache der Konzepte).

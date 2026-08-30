@@ -19,11 +19,16 @@ def _ingestieren() -> None:
     from app.database import SessionLocal
     from app.feeds import DEFAULT_FEEDS
     from app.services.news import fetch_and_ingest
+    from app.services.umfrage_sync import sync_umfragen_still
 
     db = SessionLocal()
     try:
         ergebnis = fetch_and_ingest(db, DEFAULT_FEEDS)
         print(f"[scheduler] Ingestion abgeschlossen: {ergebnis}")
+        # Umfragen ändern sich laufend – bei jedem Lauf aktualisieren (fail-soft).
+        umfrage = sync_umfragen_still(db)
+        if umfrage is not None:
+            print(f"[scheduler] Umfrage-Abgleich: {umfrage}")
     finally:
         db.close()
 

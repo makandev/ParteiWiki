@@ -24,7 +24,7 @@ from app.models import (
     Partei,
     Quelle,
 )
-from app.services import rag
+from app.services import partei_stats, rag
 from app.web.labels import (
     KATEGORIE_LABEL,
     KENNZAHL_LABEL,
@@ -112,6 +112,16 @@ def partei_profil(
     kennzahlen_nach_art: dict = _dd(list)
     for k in sorted(partei.kennzahlen, key=lambda k: k.zeitpunkt, reverse=True):
         kennzahlen_nach_art[k.art.value].append(k)
+
+    # Steckbrief: kompakte Kernzahlen (gleiche Logik wie Übersicht/Vergleich).
+    _wahl = kennzahlen_nach_art.get("bundestagswahl_zweitstimme") or []
+    _umfrage = kennzahlen_nach_art.get("umfrage_bund") or []
+    steckbrief = {
+        "wahl": _wahl[0] if _wahl else None,
+        "umfrage": _umfrage[0] if _umfrage else None,
+        "mdb": partei_stats.mdb_zahl_je_partei(db).get(partei_id, 0),
+        "news_30t": partei_stats.news_zahl_je_partei(db, tage=30).get(partei_id, 0),
+    }
     _quellen = db.scalars(select(Quelle)).all()
     mediennamen = {q.id: q.medienname for q in _quellen}
     medien = {q.id: q for q in _quellen}  # für Orientierungs-Hinweis je Meldung
@@ -186,6 +196,7 @@ def partei_profil(
             "ausgeblendet": ausgeblendet,
             "sort": sort,
             "kennzahlen_nach_art": dict(kennzahlen_nach_art),
+            "steckbrief": steckbrief,
         },
     )
 
@@ -198,46 +209,23 @@ def vergleich_seite(request: Request, db: Session = Depends(get_db)):
     Ranking über die Sortierung hinaus (nach jüngstem Wahlergebnis)."""
     parteien = db.scalars(select(Partei).order_by(Partei.name)).all()
 
-    # Wahlergebnisse je (Partei, Jahr) für Trend.
-    wahl: dict[tuple[uuid.UUID, int], float] = {}
-    for k in db.scalars(
-        select(Kennzahl).where(
-            Kennzahl.art == Kennzahlart.bundestagswahl_zweitstimme
-        )
-    ).all():
-        wahl[(k.partei_id, k.zeitpunkt.year)] = k.wert
-
-    # Aktive MdBs je Partei.
-    from app.models import Politiker
-
-    mdb_zahl: dict[uuid.UUID, int] = {}
-    for p in db.scalars(select(Politiker).where(Politiker.aktiv.is_(True))).all():
-        if p.amt and "MdB" in p.amt:
-            mdb_zahl[p.partei_id] = mdb_zahl.get(p.partei_id, 0) + 1
-
-    # News-Menge je Partei (letzte 30 Tage, über Erwähnungen).
-    from sqlalchemy import func as safunc
-
-    seit = dt.datetime.now() - dt.timedelta(days=30)
-    news_zahl: dict[uuid.UUID, int] = {}
-    for partei_id, anzahl in db.execute(
-        select(Erwaehnung.partei_id, safunc.count(safunc.distinct(Meldung.id)))
-        .join(Meldung, Meldung.id == Erwaehnung.meldung_id)
-        .where(Erwaehnung.partei_id.is_not(None), Meldung.erfasst_am >= seit)
-        .group_by(Erwaehnung.partei_id)
-    ).all():
-        news_zahl[partei_id] = anzahl
+    wahl = partei_stats.wahlergebnisse(db)
+    mdb_zahl = partei_stats.mdb_zahl_je_partei(db)
+    news_zahl = partei_stats.news_zahl_je_partei(db, tage=30)
+    umfrage = partei_stats.aktuelle_umfrage(db)
 
     zeilen = []
     for p in parteien:
         w25 = wahl.get((p.id, 2025))
         w21 = wahl.get((p.id, 2021))
         delta = (w25 - w21) if (w25 is not None and w21 is not None) else None
+        u = umfrage.get(p.id)
         zeilen.append({
             "partei": p,
             "wahl_2025": w25,
             "wahl_2021": w21,
             "delta": delta,
+            "umfrage": u.wert if u else None,
             "mdb": mdb_zahl.get(p.id, 0),
             "news": news_zahl.get(p.id, 0),
         })

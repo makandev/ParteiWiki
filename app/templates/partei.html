@@ -13,6 +13,27 @@
   </dl>
 </section>
 
+{% if steckbrief %}
+<section class="steckbrief">
+  <div class="sb-item">
+    <span class="sb-wert">{% if steckbrief.wahl %}{{ steckbrief.wahl.wert|de_zahl(1) }}&nbsp;%{% else %}—{% endif %}</span>
+    <span class="sb-label">letzte Bundestagswahl</span>
+  </div>
+  <div class="sb-item">
+    <span class="sb-wert">{% if steckbrief.umfrage %}{{ steckbrief.umfrage.wert|de_zahl(1) }}&nbsp;%{% else %}—{% endif %}</span>
+    <span class="sb-label">aktuelle Umfrage</span>
+  </div>
+  <div class="sb-item">
+    <span class="sb-wert">{{ steckbrief.mdb or "—" }}</span>
+    <span class="sb-label">Abgeordnete (MdB)</span>
+  </div>
+  <div class="sb-item">
+    <span class="sb-wert">{{ steckbrief.news_30t }}</span>
+    <span class="sb-label">Meldungen (30 Tage)</span>
+  </div>
+</section>
+{% endif %}
+
 {% if kennzahlen_nach_art %}
 <section>
   <h2>Kennzahlen</h2>

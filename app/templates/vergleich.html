@@ -17,6 +17,7 @@
       <th>Bundestagswahl 2025</th>
       <th>2021</th>
       <th>Trend</th>
+      <th title="jüngste Sonntagsfrage, sofern verfügbar">Umfrage</th>
       <th title="aktive Abgeordnete im Bundestag">MdBs</th>
       <th title="Meldungen der letzten 30 Tage">Nachrichten</th>
     </tr>
@@ -34,6 +35,7 @@
           {% else %}<span class="muted">±0</span>{% endif %}
         {% else %}<span class="muted">—</span>{% endif %}
       </td>
+      <td>{% if z.umfrage is not none %}{{ z.umfrage|de_zahl(1) }}&nbsp;%{% else %}<span class="muted">—</span>{% endif %}</td>
       <td>{% if z.mdb %}{{ z.mdb }}{% else %}<span class="muted">—</span>{% endif %}</td>
       <td>{% if z.news %}{{ z.news }}{% else %}<span class="muted">0</span>{% endif %}</td>
     </tr>
