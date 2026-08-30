@@ -16,5 +16,24 @@ services:
       timeout: 5s
       retries: 5
 
+  web:
+    build: .
+    container_name: parteiwiki-web
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://parteiwiki:parteiwiki@db:5432/parteiwiki
+      # Scharfe Backends (Default). Für sbert stattdessen EMBEDDER=sbert + EMBEDDING_DIM=384.
+      EMBEDDER: spacy_vectors
+      EMBEDDING_DIM: "300"
+      NER: spacy
+      SPACY_MODEL: de_core_news_md
+      LLM: extractive
+      ENV: production
+      SEED_ON_START: "1"
+    ports:
+      - "8000:8000"
+
 volumes:
   parteiwiki_pgdata:

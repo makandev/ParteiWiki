@@ -79,6 +79,15 @@ python -m scripts.import_votes abstimmung.xml             # Bundestag Open Data
 > Umgebung mit Netzzugang. Parsing, Dedup, Clustering, NER und Import sind
 > davon unabhängig und vollständig getestet.
 
+## Deployment & öffentliche Vorschau
+
+- **Funktionsfähig** (mit Live-Suche): `docker compose up --build` bringt DB +
+  App hoch (migriert + seedet automatisch). Für eine öffentliche URL siehe
+  Cloud-Host-Optionen (Render/Fly/Railway) und Pi/VPS in **[DEPLOY.md](DEPLOY.md)**.
+- **Statische Vorschau** auf GitHub Pages (`docs/`, per `scripts.export_static`
+  erzeugt): zeigt die echte Oberfläche zum Durchklicken – ohne Backend, also
+  ohne Live-Suche. Einrichtung ebenfalls in [DEPLOY.md](DEPLOY.md).
+
 ### Backends umschalten
 
 Der scharfe Default nutzt **spaCy-Wortvektoren** (300 Dim, offline) für die
