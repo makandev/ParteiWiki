@@ -48,7 +48,13 @@ class HashingEmbedder:
             vec[idx] += sign
         norm = math.sqrt(sum(v * v for v in vec))
         if norm > 0:
-            vec = [v / norm for v in vec]
+            return [v / norm for v in vec]
+        # Kein einziges Token (leerer/nur-Satzzeichen-Text): deterministischer
+        # Einheitsvektor statt Nullvektor – sonst ergibt cosine_distance NaN.
+        h = hashlib.sha1((text or "").encode("utf-8")).digest()
+        idx = int.from_bytes(h[:4], "big") % self.dim
+        vec = [0.0] * self.dim
+        vec[idx] = 1.0
         return vec
 
 

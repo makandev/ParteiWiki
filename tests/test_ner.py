@@ -68,3 +68,11 @@ def test_haeufigwort_nachname_wird_abgelehnt():
 
 def test_zu_kurzer_nachname_wird_abgelehnt():
     assert nachnamen_eintraege([_pol("Max Ott")]) == []
+
+
+def test_nachname_kollidiert_mit_parteitoken():
+    # "Linke" ist Token der Partei "Die Linke" -> kein Nachnamen-Muster,
+    # damit eine Parteinennung nicht dem Politiker zugeschrieben wird.
+    assert nachnamen_eintraege([_pol("Max Linke")], verbotene={"die", "linke"}) == []
+    # Ohne Kollision wird derselbe Nachname zugelassen.
+    assert len(nachnamen_eintraege([_pol("Max Linke")])) == 1

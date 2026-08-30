@@ -30,9 +30,11 @@ def test_aehnlichkeit():
     assert _cos(basis, nah) > _cos(basis, fern)
 
 
-def test_hashing_leerer_text_ist_nullvektor():
-    # HashingEmbedder liefert für leeren Text den Nullvektor – die Guard-Logik
-    # im SpacyVectorEmbedder (Norm 0 -> Hashing-Fallback) verhindert genau, dass
-    # ein solcher Nullvektor als spaCy-Embedding gespeichert wird.
-    v = HashingEmbedder(dim=32).embed("")
-    assert len(v) == 32 and all(x == 0.0 for x in v)
+def test_hashing_leerer_text_nie_nullvektor():
+    # Auch leerer/nur-Satzzeichen-Text ergibt einen Einheitsvektor (Norm 1),
+    # nie einen Nullvektor – sonst würde cosine_distance NaN liefern und die
+    # Ähnlichkeitssuche verfälschen.
+    for text in ("", "   ", "!!!"):
+        v = HashingEmbedder(dim=32).embed(text)
+        assert len(v) == 32
+        assert math.isclose(math.sqrt(sum(x * x for x in v)), 1.0, rel_tol=1e-6)

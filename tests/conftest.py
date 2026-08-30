@@ -14,8 +14,10 @@ from __future__ import annotations
 import os
 
 # MUSS vor dem Import von app.* gesetzt werden (Settings werden gecacht).
-os.environ.setdefault("EMBEDDER", "hashing")
-os.environ.setdefault("NER", "gazetteer")
+# Unbedingt setzen (nicht setdefault), damit ein in der Shell exportiertes
+# EMBEDDER/NER die Tests nicht auf schwere spaCy-Backends umschaltet.
+os.environ["EMBEDDER"] = "hashing"
+os.environ["NER"] = "gazetteer"
 
 import pytest
 from sqlalchemy import text

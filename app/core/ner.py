@@ -78,14 +78,16 @@ def _muster(name: str) -> re.Pattern:
     return re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)
 
 
-def nachnamen_eintraege(politiker: list) -> list["_Eintrag"]:
+def nachnamen_eintraege(politiker: list, verbotene: set[str] | None = None) -> list["_Eintrag"]:
     """Zusätzliche Nachnamen-Muster – konservativ gegen Falsch-Positive.
 
     Ein Nachname wird nur zugelassen, wenn er (a) unter den übergebenen
-    Politikern eindeutig ist, (b) mindestens 4 Zeichen hat und (c) kein
-    gängiges Wort/Vorname (``NACHNAME_STOPP``) ist. Erwartet Objekte mit
-    ``name``, ``id`` und ``partei_id``.
+    Politikern eindeutig ist, (b) mindestens 4 Zeichen hat, (c) kein gängiges
+    Wort/Vorname (``NACHNAME_STOPP``) ist und (d) nicht mit einem Partei-Token
+    kollidiert (``verbotene``, z. B. „Linke" aus „Die Linke"). Erwartet Objekte
+    mit ``name``, ``id`` und ``partei_id``.
     """
+    verbotene = verbotene or set()
     nach: dict[str, list] = {}
     for pol in politiker:
         teile = (pol.name or "").split()
@@ -97,6 +99,7 @@ def nachnamen_eintraege(politiker: list) -> list["_Eintrag"]:
             len(treffer) == 1
             and len(nachname) >= 4
             and nachname.lower() not in NACHNAME_STOPP
+            and nachname.lower() not in verbotene
         ):
             pol = treffer[0]
             eintraege.append(
@@ -115,6 +118,7 @@ class GazetteerTagger:
     @classmethod
     def aus_db(cls, db: Session) -> "GazetteerTagger":
         eintraege: list[_Eintrag] = []
+        partei_tokens: set[str] = set()  # gegen Nachname/Partei-Kollisionen
         for p in db.scalars(select(Partei)).all():
             namen = [p.name, *PARTEI_ALIASE.get(p.name, [])]
             for n in namen:
@@ -122,12 +126,13 @@ class GazetteerTagger:
                     eintraege.append(
                         _Eintrag(_muster(n), p.name, None, p.id, len(n))
                     )
+                    partei_tokens.update(t.lower() for t in n.split())
         politiker = [p for p in db.scalars(select(Politiker)).all() if p.name]
         for pol in politiker:
             eintraege.append(
                 _Eintrag(_muster(pol.name), pol.name, pol.id, pol.partei_id, len(pol.name))
             )
-        eintraege.extend(nachnamen_eintraege(politiker))
+        eintraege.extend(nachnamen_eintraege(politiker, partei_tokens))
         return cls(eintraege)
 
     @property
