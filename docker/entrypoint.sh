@@ -4,10 +4,11 @@ set -euo pipefail
 
 echo "[entrypoint] warte auf die Datenbank ..."
 python - <<'PY'
-import os, time
+import time
 from sqlalchemy import create_engine, text
+from app.config import settings  # normalisiert postgres:// -> postgresql+psycopg://
 
-url = os.environ["DATABASE_URL"]
+url = settings.database_url
 for versuch in range(60):
     try:
         with create_engine(url).connect() as c:
@@ -23,9 +24,9 @@ PY
 
 # pgvector-Extension sicherstellen (idempotent; benötigt ausreichende Rechte).
 python - <<'PY'
-import os
 from sqlalchemy import create_engine, text
-with create_engine(os.environ["DATABASE_URL"]).connect() as c:
+from app.config import settings
+with create_engine(settings.database_url).connect() as c:
     c.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     c.commit()
     print("[entrypoint] pgvector bereit.")
