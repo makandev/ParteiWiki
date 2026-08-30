@@ -14,10 +14,29 @@ from app.config import settings
 from app.web.routes import router as web_router
 
 
+async def _mdb_sync_beim_start() -> None:
+    """Einmaliger MdB-Abgleich beim Start (Thread, netzabhängig, fail-soft)."""
+    def _lauf() -> None:
+        from app.database import SessionLocal
+        from app.services.mandate_sync import sync_mdb_still
+
+        db = SessionLocal()
+        try:
+            ergebnis = sync_mdb_still(db)
+            if ergebnis is not None:
+                print(f"[app] MdB-Abgleich: {ergebnis}")
+        finally:
+            db.close()
+
+    await asyncio.to_thread(_lauf)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startet optional den Auto-Ingestion-Scheduler (macht die Seite live)."""
     task = None
+    if settings.mdb_sync_beim_start:
+        asyncio.create_task(_mdb_sync_beim_start())
     if settings.ingest_interval_minutes > 0:
         from app.services.scheduler import ingest_loop
 

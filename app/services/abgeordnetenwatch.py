@@ -70,6 +70,15 @@ class PolitikerRoh:
 
 
 @dataclass
+class PeriodeRoh:
+    """Eine Legislaturperiode (zur automatischen Auswahl der aktuellen)."""
+    externe_id: int | None
+    label: str | None
+    parlament_label: str | None
+    start_datum: str | None = None
+
+
+@dataclass
 class MandatRoh:
     """Ein Bundestagsmandat: Person + (normalisierbare) Partei."""
     externe_id: int | None
@@ -106,6 +115,38 @@ def parse_politicians(payload: dict) -> list[PolitikerRoh]:
             partei_label=partei.get("label") if isinstance(partei, dict) else None,
         ))
     return ergebnis
+
+
+def parse_parliament_periods(payload: dict) -> list[PeriodeRoh]:
+    """Extrahiert Legislaturperioden aus einer parliament-periods-Antwort."""
+    ergebnis: list[PeriodeRoh] = []
+    for d in payload.get("data", []):
+        parlament = d.get("parliament") or {}
+        ergebnis.append(PeriodeRoh(
+            externe_id=d.get("id"),
+            label=d.get("label"),
+            parlament_label=parlament.get("label") if isinstance(parlament, dict) else None,
+            start_datum=d.get("start_date_period"),
+        ))
+    return ergebnis
+
+
+def waehle_aktuelle_periode(
+    perioden: list[PeriodeRoh], *, parlament: str = "Bundestag"
+) -> PeriodeRoh | None:
+    """Wählt die jüngste Legislaturperiode des genannten Parlaments.
+
+    Auswahl über das Startdatum (jüngstes zuerst); fehlt es, dient die
+    externe ID als Ersatzkriterium (höhere ID = neuer).
+    """
+    passende = [
+        p for p in perioden
+        if p.externe_id is not None
+        and (p.parlament_label or "").casefold() == parlament.casefold()
+    ]
+    if not passende:
+        return None
+    return max(passende, key=lambda p: (p.start_datum or "", p.externe_id or 0))
 
 
 def _partei_aus_mandat(d: dict) -> str | None:
@@ -234,6 +275,24 @@ class AbgeordnetenwatchClient:
         resp = self._client.get(f"{self.base}/politicians", params=params)
         resp.raise_for_status()
         return parse_politicians(resp.json())
+
+    def parliament_periods(self, *, parlament: str = "Bundestag", limit: int = 50) -> list[PeriodeRoh]:
+        """Legislaturperioden eines Parlaments abrufen (für die Auto-Auswahl)."""
+        params = {
+            "parliament[entity.label]": parlament,
+            "type": "legislature",
+            "range_start": 0,
+            "range_end": limit,
+        }
+        resp = self._client.get(f"{self.base}/parliament-periods", params=params)
+        resp.raise_for_status()
+        return parse_parliament_periods(resp.json())
+
+    def aktuelle_bundestag_periode(self) -> PeriodeRoh | None:
+        """Ermittelt die aktuelle Bundestags-Legislaturperiode automatisch."""
+        return waehle_aktuelle_periode(
+            self.parliament_periods(parlament="Bundestag"), parlament="Bundestag"
+        )
 
     def mandate(self, *, parliament_period: int, limit: int = 1000) -> list[MandatRoh]:
         """Alle Mandate einer Legislaturperiode (Bundestag) abrufen."""

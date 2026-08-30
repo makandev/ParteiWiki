@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # aktuelle Nachrichten zieht.
     ingest_interval_minutes: int = 0
 
+    # Echte MdBs beim App-Start automatisch von abgeordnetenwatch abgleichen
+    # (idempotent). Auf dem Server (mit Netzzugang) sinnvoll an; in Umgebungen
+    # ohne Egress schlägt der Abruf still fehl und stört nichts.
+    mdb_sync_beim_start: bool = True
+
     env: str = "development"
 
     @property

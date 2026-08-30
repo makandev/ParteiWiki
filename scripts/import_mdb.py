@@ -1,17 +1,18 @@
 """Importiert echte Bundestags-MdBs (alle Parteien) von abgeordnetenwatch.de.
 
-Aufruf:  python -m scripts.import_mdb --period <PARLIAMENT_PERIOD_ID> [--limit 1000]
+Aufruf:  python -m scripts.import_mdb            # aktuelle Periode automatisch
+         python -m scripts.import_mdb --period <ID> [--limit 1000]
 
-Die --period-ID ist die abgeordnetenwatch-ID der Bundestags-Legislaturperiode.
-Sie ermittelt man einmalig über die API:
-    GET /api/v2/parliament-periods?parliament[entity.label]=Bundestag&type=legislature
-und nimmt die aktuelle Periode. Alle Mandate dieser Periode werden abgerufen und
-je Partei den passenden Datensätzen zugeordnet (Normalisierung der Parteilabels).
-Parteien ohne passenden Datensatz werden übersprungen (gleiche Methodik für alle).
+Ohne --period ermittelt das Skript die aktuelle Bundestags-Legislaturperiode
+selbst. Alle Mandate dieser Periode werden abgerufen und je Partei den
+passenden Datensätzen zugeordnet (Normalisierung der Parteilabels). Parteien
+ohne passenden Datensatz werden übersprungen (gleiche Methodik für alle);
+Re-Läufe sind idempotent.
 
-Hinweis: In dieser Ausführungsumgebung ist der Netzabruf per Egress-Policy
-gesperrt; das Skript ist für Umgebungen mit Netzzugang gedacht. Parsing/Import
-sind über Fixtures getestet (tests/test_import_mdb.py).
+Hinweis: In dieser Bau-Umgebung ist der Netzabruf per Egress-Policy gesperrt;
+das Skript ist für Umgebungen mit Netzzugang gedacht (z. B. der Server). Auf
+dem Server läuft der Abgleich zudem automatisch beim Start (MDB_SYNC_BEIM_START).
+Parsing/Import/Perioden-Auswahl sind über Fixtures getestet.
 """
 from __future__ import annotations
 
@@ -25,8 +26,9 @@ from app.services.abgeordnetenwatch import AbgeordnetenwatchClient, import_mdb
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--period", type=int, required=True,
-                    help="abgeordnetenwatch parliament_period-ID (Bundestag).")
+    ap.add_argument("--period", type=int, default=None,
+                    help="abgeordnetenwatch parliament_period-ID (Bundestag). "
+                         "Weglassen = aktuelle Periode automatisch wählen.")
     ap.add_argument("--limit", type=int, default=1000)
     args = ap.parse_args()
 
@@ -34,7 +36,15 @@ def main() -> None:
     try:
         client = AbgeordnetenwatchClient()
         try:
-            mandate = client.mandate(parliament_period=args.period, limit=args.limit)
+            period = args.period
+            if period is None:
+                periode = client.aktuelle_bundestag_periode()
+                if periode is None or periode.externe_id is None:
+                    print("Keine aktuelle Bundestags-Periode gefunden.")
+                    return
+                period = periode.externe_id
+                print(f"Aktuelle Periode: {periode.label or period} (ID {period}).")
+            mandate = client.mandate(parliament_period=period, limit=args.limit)
         except httpx.HTTPError as exc:
             print(f"Abruf fehlgeschlagen (Netz/Egress?): {exc}")
             return

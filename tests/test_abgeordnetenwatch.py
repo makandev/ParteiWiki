@@ -4,8 +4,10 @@ from __future__ import annotations
 from app.services.abgeordnetenwatch import (
     normalisiere_partei,
     parse_mandate,
+    parse_parliament_periods,
     parse_politicians,
     parse_questions,
+    waehle_aktuelle_periode,
 )
 
 POLITICIANS = {
@@ -85,6 +87,37 @@ def test_parse_mandate_extrahiert_nur_mandate():
 def test_parse_mandate_partei_aus_fraktion():
     mandate = {m.politiker_name: m for m in parse_mandate(MANDATE)}
     assert mandate["Britta Haßelmann"].partei_label == "BÜNDNIS 90/DIE GRÜNEN"
+
+
+PERIODEN = {
+    "data": [
+        {"id": 111, "type": "legislature", "label": "Bundestag 2017 - 2021",
+         "start_date_period": "2017-10-24",
+         "parliament": {"id": 5, "label": "Bundestag"}},
+        {"id": 132, "type": "legislature", "label": "Bundestag 2021 - 2025",
+         "start_date_period": "2021-10-26",
+         "parliament": {"id": 5, "label": "Bundestag"}},
+        {"id": 161, "type": "legislature", "label": "Bundestag 2025 - 2029",
+         "start_date_period": "2025-03-25",
+         "parliament": {"id": 5, "label": "Bundestag"}},
+        # Anderes Parlament wird ignoriert.
+        {"id": 200, "type": "legislature", "label": "Bayern 2023",
+         "start_date_period": "2023-10-01",
+         "parliament": {"id": 9, "label": "Bayern"}},
+    ],
+}
+
+
+def test_waehle_aktuelle_periode_nimmt_juengsten_bundestag():
+    perioden = parse_parliament_periods(PERIODEN)
+    aktuell = waehle_aktuelle_periode(perioden, parlament="Bundestag")
+    assert aktuell is not None
+    assert aktuell.externe_id == 161  # jüngstes Startdatum
+    assert aktuell.parlament_label == "Bundestag"
+
+
+def test_waehle_aktuelle_periode_leer():
+    assert waehle_aktuelle_periode([]) is None
 
 
 def test_normalisiere_partei():
