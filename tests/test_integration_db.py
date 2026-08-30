@@ -198,6 +198,23 @@ def test_ensure_kennzahlen_idempotent_und_belegt(db):
     assert anzahl_nachher == anzahl_vorher
 
 
+# --- Vergleich-Seite: Wahlergebnisse + Trend nebeneinander ---------------
+def test_vergleich_seite_zeigt_wahlergebnisse(db, client):
+    from scripts.seed_kennzahlen import ensure_kennzahlen
+
+    for name in ("CDU", "AfD", "SPD"):
+        _partei_or_create(db, name)
+    db.flush()
+    ensure_kennzahlen(db)
+
+    r = client.get("/vergleich")
+    assert r.status_code == 200
+    t = r.text
+    assert "Parteien im Vergleich" in t
+    # Deutsches Zahlenformat (Komma) und Trend-Symbol vorhanden.
+    assert "22,6" in t and ("▲" in t or "▼" in t)
+
+
 # --- RAG: Treffer + belegte Antwort --------------------------------------
 def test_rag_query_liefert_beleg(db, client):
     partei = _partei(db)

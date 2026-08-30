@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Parteien im Vergleich – ParteiWiki{% endblock %}
+{% block content %}
+<nav class="breadcrumb"><a href="/">Übersicht</a> / Vergleich</nav>
+<h1>Parteien im Vergleich</h1>
+<p class="lead">
+  Dieselben Kennzahlen für alle Parteien nebeneinander – Wahlergebnisse mit
+  Trend, aktive Abgeordnete und die Nachrichten-Menge der letzten 30 Tage.
+  Nur Fakten aus belegten Quellen, keine Bewertung.
+</p>
+
+<div style="overflow-x:auto">
+<table class="snapshots vergleich">
+  <thead>
+    <tr>
+      <th>Partei</th>
+      <th>Bundestagswahl 2025</th>
+      <th>2021</th>
+      <th>Trend</th>
+      <th title="aktive Abgeordnete im Bundestag">MdBs</th>
+      <th title="Meldungen der letzten 30 Tage">Nachrichten</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for z in zeilen %}
+    <tr>
+      <td><a href="/parteien/{{ z.partei.id }}"><strong>{{ z.partei.name }}</strong></a></td>
+      <td>{% if z.wahl_2025 is not none %}<strong>{{ z.wahl_2025|de_zahl(1) }}&nbsp;%</strong>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if z.wahl_2021 is not none %}{{ z.wahl_2021|de_zahl(1) }}&nbsp;%{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>
+        {% if z.delta is not none %}
+          {% if z.delta > 0 %}<span class="trend-auf">▲ +{{ z.delta|de_zahl(1) }}</span>
+          {% elif z.delta < 0 %}<span class="trend-ab">▼ {{ z.delta|de_zahl(1) }}</span>
+          {% else %}<span class="muted">±0</span>{% endif %}
+        {% else %}<span class="muted">—</span>{% endif %}
+      </td>
+      <td>{% if z.mdb %}{{ z.mdb }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if z.news %}{{ z.news }}{% else %}<span class="muted">0</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<p class="muted small">
+  Wahlergebnisse: Zweitstimmen-Anteile, Quelle Bundeswahlleiterin. „Trend" ist
+  die Differenz 2025 gegenüber 2021 in Prozentpunkten. „MdBs" zählt die aktuell
+  erfassten Abgeordneten, „Nachrichten" die aggregierten Meldungen der letzten
+  30 Tage – beide wachsen, sobald Server-Abgleich und Ingestion laufen.
+</p>
+{% endblock %}

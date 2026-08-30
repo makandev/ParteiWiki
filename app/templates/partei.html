@@ -27,7 +27,7 @@
       {% for k in liste %}
         <tr>
           <td>{{ k.label or k.zeitpunkt.strftime("%d.%m.%Y") }}</td>
-          <td><strong>{{ "%.2f"|format(k.wert) }}&nbsp;{{ k.einheit }}</strong>
+          <td><strong>{{ k.wert|de_zahl(2) }}&nbsp;{{ k.einheit }}</strong>
             {% if k.vorlaeufig %}<span class="tag status-vorlaeufig" title="{{ k.bemerkung or 'noch zu verifizieren' }}">vorläufig</span>{% endif %}
             {% if k.bemerkung %}<span class="muted small">· {{ k.bemerkung }}</span>{% endif %}
           </td>
@@ -100,10 +100,10 @@
 </section>
 
 <section>
-  <h2>Personen</h2>
+  <h2>Personen{% if politiker %} <span class="muted small">({{ politiker|length }})</span>{% endif %}</h2>
   {% if politiker %}
   <ul class="personen">
-    {% for p in politiker %}
+    {% for p in politiker[:24] %}
     <li>
       <strong>{{ p.name }}</strong>
       {% if p.amt %}<span class="tag">{{ p.amt }}</span>{% endif %}
@@ -111,7 +111,22 @@
     </li>
     {% endfor %}
   </ul>
-  {% else %}<p class="muted">Noch keine Personen erfasst.</p>{% endif %}
+  {% if politiker|length > 24 %}
+  <details>
+    <summary class="muted small">Alle {{ politiker|length }} Personen anzeigen</summary>
+    <ul class="personen">
+      {% for p in politiker[24:] %}
+      <li>
+        <strong>{{ p.name }}</strong>
+        {% if p.amt %}<span class="tag">{{ p.amt }}</span>{% endif %}
+        {% if not p.aktiv %}<span class="tag tag-muted">nicht mehr im Amt</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  {% else %}<p class="muted">Noch keine Personen erfasst – echte Abgeordnete erscheinen
+    automatisch nach dem MdB-Abgleich (läuft auf dem Server beim Start).</p>{% endif %}
 </section>
 
 <section>

@@ -16,7 +16,7 @@
       <h2>{{ partei.name }}</h2>
       {% set kw = letzte_wahl.get(partei.id) %}
       {% if kw %}
-        <p class="kennzahl-gross">{{ "%.1f"|format(kw.wert) }}&nbsp;{{ kw.einheit }}
+        <p class="kennzahl-gross">{{ kw.wert|de_zahl(1) }}&nbsp;{{ kw.einheit }}
           <span class="muted small">· {{ kw.label }}</span></p>
       {% endif %}
       {% if partei.gruendungsjahr %}<p class="muted small">gegründet {{ partei.gruendungsjahr }}</p>{% endif %}

@@ -107,3 +107,7 @@ table.snapshots th, table.snapshots td { text-align: left; padding: 8px 10px; bo
 .kennzahl-gross { font-size: 1.5rem; font-weight: 700; color: var(--accent); margin: 6px 0 2px; }
 .kennzahl-block { margin-bottom: 18px; }
 .kennzahl-titel { font-size: 1rem; margin: 12px 0 6px; color: var(--muted); font-weight: 600; }
+.vergleich td, .vergleich th { white-space: nowrap; }
+.trend-auf { color: var(--ok); font-weight: 600; }
+.trend-ab { color: #b91c1c; font-weight: 600; }
+details > summary { cursor: pointer; padding: 6px 0; }
