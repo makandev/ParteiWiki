@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ParteiWiki{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">ParteiWiki</a>
+    <nav>
+      <a href="/news">Nachrichten</a>
+      <a href="/fragen">Frage stellen</a>
+      <a href="/quellen/ausschlussliste">Ausschlussliste</a>
+      <a href="/docs">API</a>
+    </nav>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <p>
+      Neutrale, quellenbasierte Darstellung. Gleiche Kriterien für alle Parteien –
+      keine eigene Bewertung, kein Ranking. Der Nutzer urteilt selbst.
+    </p>
+  </footer>
+</body>
+</html>

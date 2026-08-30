@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}ParteiWiki – Übersicht{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Parteien im Überblick</h1>
+  <p class="lead">
+    Recherchiere quellenbasiert, sieh wie sich Themen über Zeit entwickelt haben
+    und was danach passiert ist – inklusive Diff-Tracking geänderter Artikel.
+  </p>
+</section>
+
+<section>
+  <div class="card-grid">
+    {% for partei in parteien %}
+    <a class="card" href="/parteien/{{ partei.id }}">
+      <h2>{{ partei.name }}</h2>
+      {% if partei.gruendungsjahr %}<p class="muted">gegründet {{ partei.gruendungsjahr }}</p>{% endif %}
+      {% if partei.kurzbeschreibung %}<p>{{ partei.kurzbeschreibung }}</p>{% endif %}
+    </a>
+    {% else %}
+    <p class="muted">Noch keine Parteien erfasst. Seed-Daten laden mit
+      <code>python -m scripts.seed</code>.</p>
+    {% endfor %}
+  </div>
+</section>
+
+{% if changelog %}
+<section>
+  <h2>Methodik-Changelog</h2>
+  <p class="muted">Transparenz-Pflicht: jede Änderung an den Kriterien wird dokumentiert.</p>
+  <ul class="changelog">
+    {% for eintrag in changelog %}
+    <li><strong>{{ eintrag.datum }}</strong> – {{ eintrag.was_geaendert }}
+      {% if eintrag.warum %}<span class="muted">({{ eintrag.warum }})</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

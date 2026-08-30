@@ -1,0 +1,37 @@
+# --- Web / API ---
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+jinja2==3.1.4
+python-multipart==0.0.17
+
+# --- Datenbank ---
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+pgvector==0.3.6
+
+# --- Konfiguration / Validierung ---
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# --- Ingestion / Diff-Tracking ---
+httpx==0.28.1
+
+# --- NER + echte Embeddings (scharfer Default) ---
+# spaCy stellt sowohl das NER-Backend als auch die Wortvektor-Embeddings.
+# Das Modell MIT Vektoren (300 Dim) separat installieren – siehe README:
+#   python -m spacy download de_core_news_md
+# Ohne Modell fällt die App automatisch auf Gazetteer-NER + Hashing-Embeddings
+# zurück (funktionsfähig, aber ohne echte Semantik).
+spacy==3.8.16
+numpy>=1.26
+
+# --- Tests ---
+pytest==8.3.4
+
+# --- Optionale, stärkere Backends ---
+# Transformer-Embeddings statt spaCy-Vektoren (EMBEDDER=sbert, EMBEDDING_DIM=384;
+# benötigt Zugriff auf den Modell-Hub):
+# sentence-transformers==3.3.1
+# LLM-gestützte Antwortsynthese mit Zitations-Zwang (LLM=anthropic, Anmeldedaten nötig):
+# anthropic>=0.40
