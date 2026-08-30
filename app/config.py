@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     # Redaktionelle Kriterien, Punkt 1: 3-Quellen-Regel.
     bestaetigt_ab_quellen: int = 3
 
+    # Automatische News-Ingestion im App-Prozess. 0 = aus (Default, z. B. Tests/
+    # Dev). Auf dem Server > 0 setzen (z. B. 60), damit die Seite laufend
+    # aktuelle Nachrichten zieht.
+    ingest_interval_minutes: int = 0
+
     env: str = "development"
 
     @property

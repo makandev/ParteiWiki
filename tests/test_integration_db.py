@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import datetime as dt
 
+from sqlalchemy import select
+
 from app.core.ner import GazetteerTagger
 from app.enums import Ereigniskategorie, SnapshotStatus, Vertrauensstufe
 from app.feeds import Feed
@@ -86,10 +88,18 @@ def test_news_dedup_und_cluster(db):
     assert ingest_feed_inhalt(db, Feed("Welt", "x", "https://welt.de"), dup, tagger) == 0
     db.flush()
 
-    from app.api.news import framing_cluster
-    cluster = framing_cluster(db=db, partei_id=None, limit=10)
-    assert len(cluster) == 1
-    assert cluster[0].anzahl_quellen == 2
+    # Robust gegenüber vorhandenen Daten: FAZ- und SZ-Meldung teilen sich denselben
+    # Cluster (Framing derselben Story), der mindestens zwei unabhängige Quellen hat.
+    from app.models import Meldung
+    faz_m = db.scalar(select(Meldung).where(Meldung.url == "https://faz.net/x1"))
+    sz_m = db.scalar(select(Meldung).where(Meldung.url == "https://sz.de/x1"))
+    assert faz_m.cluster_id is not None
+    assert faz_m.cluster_id == sz_m.cluster_id
+    quellen_im_cluster = {
+        m.quelle_id
+        for m in db.scalars(select(Meldung).where(Meldung.cluster_id == faz_m.cluster_id)).all()
+    }
+    assert len(quellen_im_cluster) >= 2
 
 
 # --- Vier-Augen-Snapshot-Prüfung über die API ----------------------------

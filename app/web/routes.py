@@ -60,6 +60,18 @@ def partei_profil(
     positionen = sorted(
         partei.positionen, key=lambda p: p.geaendert_am or dt.date.min, reverse=True
     )
+    # Nachrichten über die Partei (automatisch aggregiert – zum Lesen).
+    meldungen = db.scalars(
+        select(Meldung)
+        .where(Meldung.partei_id == partei_id)
+        .order_by(Meldung.erfasst_am.desc())
+        .limit(30)
+    ).all()
+    mediennamen = {q.id: q.medienname for q in db.scalars(select(Quelle)).all()}
+    # Stark beachtete Themen (mehrere unabhängige Quellen) – neutral hervorgehoben.
+    from app.api.news import framing_cluster
+
+    viel_beachtet = framing_cluster(db=db, partei_id=partei_id, limit=6)
     return templates.TemplateResponse(
         "partei.html",
         {
@@ -69,6 +81,9 @@ def partei_profil(
             "positionen": positionen,
             "ereignisse": ereignisse,
             "quellen_je_ereignis": quellen_je_ereignis,
+            "meldungen": meldungen,
+            "mediennamen": mediennamen,
+            "viel_beachtet": viel_beachtet,
         },
     )
 

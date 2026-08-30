@@ -43,5 +43,18 @@ else:
 PY
 fi
 
+# Früher angelegte Demonstrationsdaten entfernen (idempotent; no-op wenn keine da).
+python - <<'PY'
+from app.database import SessionLocal
+from scripts.cleanup_demo import bereinige_demo
+db = SessionLocal()
+try:
+    ergebnis = bereinige_demo(db)
+    if any(ergebnis.values()):
+        print(f"[entrypoint] Demo-Daten entfernt: {ergebnis}")
+finally:
+    db.close()
+PY
+
 echo "[entrypoint] starte uvicorn ..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000
