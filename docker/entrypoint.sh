@@ -56,5 +56,18 @@ finally:
     db.close()
 PY
 
+# Alle Parteien sicherstellen (Übersicht zeigt alle; idempotent).
+python - <<'PY'
+from app.database import SessionLocal
+from scripts.seed_parteien import ensure_parteien
+db = SessionLocal()
+try:
+    neu = ensure_parteien(db)
+    if neu:
+        print(f"[entrypoint] Parteien ergänzt: {neu}")
+finally:
+    db.close()
+PY
+
 echo "[entrypoint] starte uvicorn ..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000

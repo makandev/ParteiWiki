@@ -77,7 +77,11 @@ def seed() -> None:
         ))
 
         db.commit()
-        print("Seed abgeschlossen: Partei AfD, 2 Politiker, Quellenliste.")
+
+        # Alle weiteren Parteien ergänzen (Übersicht zeigt alle).
+        from scripts.seed_parteien import ensure_parteien
+        ensure_parteien(db)
+        print("Seed abgeschlossen: Parteien-Stammdaten, AfD-Politiker, Quellenliste.")
     finally:
         db.close()
 
