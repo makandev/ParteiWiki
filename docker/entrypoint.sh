@@ -22,16 +22,6 @@ else:
     raise SystemExit("[entrypoint] DB nach 120s nicht erreichbar.")
 PY
 
-# pgvector-Extension sicherstellen (idempotent; benötigt ausreichende Rechte).
-python - <<'PY'
-from sqlalchemy import create_engine, text
-from app.config import settings
-with create_engine(settings.database_url).connect() as c:
-    c.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-    c.commit()
-    print("[entrypoint] pgvector bereit.")
-PY
-
 echo "[entrypoint] Migrationen ..."
 alembic upgrade head
 
