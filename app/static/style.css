@@ -95,3 +95,11 @@ table.snapshots th, table.snapshots td { text-align: left; padding: 8px 10px; bo
 .belege { margin: 6px 0 0 8px; padding-left: 14px; }
 .cluster { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; }
 .cluster-head { margin-bottom: 6px; }
+.filterbar { margin: 4px 0 12px; line-height: 1.9; }
+/* Politische Orientierung – dezente Farbcodierung (neutraler Hinweis). */
+.spk-links { background: #fde2e4; color: #9d174d; }
+.spk-mitte-links { background: #fce7f3; color: #9d174d; }
+.spk-mitte { background: #eef1f6; color: #334; }
+.spk-mitte-rechts { background: #dbeafe; color: #1e40af; }
+.spk-rechts { background: #dbeafe; color: #1e3a8a; }
+.spk-agentur { background: #f1f1ef; color: var(--muted); }

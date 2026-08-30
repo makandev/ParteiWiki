@@ -20,6 +20,8 @@ from app.models import (
     Partei,
     Quelle,
 )
+from app.services.abgeordnetenwatch import MandatRoh, import_mdb
+from app.models import Politiker
 from app.services.news import ingest_feed_inhalt
 from app.services.rag import index_ereignis
 
@@ -128,6 +130,45 @@ def test_snapshot_pruefung_via_api(db, client):
     assert ok.status_code == 200
     assert ok.json()["status"] == "bestaetigt_veraendert"
     assert "Redaktion" in ok.json()["geprueft_von"]
+
+
+# --- MdB-Import (Mandate) über Partei-Normalisierung ---------------------
+def _partei_or_create(db, name):
+    p = db.scalar(select(Partei).where(Partei.name == name))
+    if p is None:
+        p = _partei(db, name=name)
+    return p
+
+
+def test_import_mdb_ordnet_und_ist_idempotent(db):
+    afd = _partei_or_create(db, "AfD")
+    gruene = _partei_or_create(db, "Grüne")
+    # Test-eigene Namen, damit vorhandene Seed-Politiker den Test nicht stören.
+    n1, n2 = "Testperson Eins-MdB", "Testperson Zwei-MdB"
+    mandate = [
+        MandatRoh(externe_id=1, politiker_name=n1, partei_label="AfD"),
+        MandatRoh(externe_id=2, politiker_name=n2,
+                  partei_label="BÜNDNIS 90/DIE GRÜNEN"),
+        # Unbekannte Partei -> übersprungen (kein Rateverfahren).
+        MandatRoh(externe_id=3, politiker_name="Niemand-MdB", partei_label="XYZ-Partei"),
+    ]
+    ergebnis = import_mdb(db, mandate)
+    db.flush()
+    assert ergebnis.get("AfD") == 1
+    assert ergebnis.get("Grüne") == 1
+    assert ergebnis["_uebersprungen"] == 1
+
+    p1 = db.scalar(select(Politiker).where(Politiker.name == n1))
+    assert p1 is not None and p1.partei_id == afd.id and p1.amt == "MdB"
+    p2 = db.scalar(select(Politiker).where(Politiker.name == n2))
+    assert p2.partei_id == gruene.id
+
+    # Re-Import legt niemanden doppelt an.
+    ergebnis2 = import_mdb(db, mandate)
+    db.flush()
+    assert ergebnis2.get("AfD", 0) == 0 and ergebnis2.get("Grüne", 0) == 0
+    anzahl = len(db.scalars(select(Politiker).where(Politiker.name == n1)).all())
+    assert anzahl == 1
 
 
 # --- RAG: Treffer + belegte Antwort --------------------------------------

@@ -12,6 +12,10 @@ API-Form (v2):
     GET {BASE}/questions?politician={id}
     -> {"meta": {...}, "data": [ {id, questions_text, answers:[{answer_text,...}],
                                   politician:{id,label}}, ... ]}
+    GET {BASE}/candidacies-mandates?parliament_period={id}&type=mandate&range_end=1000
+    -> {"meta": {...}, "data": [ {id, label, type: "mandate",
+                                  politician:{id,label}, party:{id,label},
+                                  fraction_membership:[{fraction:{label}}], ...}, ... ]}
 """
 from __future__ import annotations
 
@@ -27,6 +31,34 @@ from app.models import Partei, Politiker
 
 BASE = "https://www.abgeordnetenwatch.de/api/v2"
 
+# abgeordnetenwatch-Parteilabels -> unsere Parteinamen (scripts/seed_parteien.py).
+# Bewusst konservativ: nur eindeutige, gut belegte Zuordnungen. Unbekannte
+# Labels bleiben unzugeordnet (kein Rateverfahren).
+PARTEI_NORMALISIERUNG: dict[str, str] = {
+    "cdu": "CDU",
+    "csu": "CSU",
+    "spd": "SPD",
+    "grüne": "Grüne",
+    "bündnis 90/die grünen": "Grüne",
+    "die grünen": "Grüne",
+    "fdp": "FDP",
+    "afd": "AfD",
+    "alternative für deutschland": "AfD",
+    "die linke": "Die Linke",
+    "die linke.": "Die Linke",
+    "linke": "Die Linke",
+    "bsw": "BSW",
+    "bündnis sahra wagenknecht": "BSW",
+    "freie wähler": "Freie Wähler",
+}
+
+
+def normalisiere_partei(label: str | None) -> str | None:
+    """Mappt ein abgeordnetenwatch-Parteilabel auf unseren Parteinamen."""
+    if not label:
+        return None
+    return PARTEI_NORMALISIERUNG.get(label.strip().casefold())
+
 
 @dataclass
 class PolitikerRoh:
@@ -34,6 +66,15 @@ class PolitikerRoh:
     name: str
     vorname: str | None = None
     nachname: str | None = None
+    partei_label: str | None = None
+
+
+@dataclass
+class MandatRoh:
+    """Ein Bundestagsmandat: Person + (normalisierbare) Partei."""
+    externe_id: int | None
+    politiker_name: str
+    politiker_externe_id: int | None = None
     partei_label: str | None = None
 
 
@@ -63,6 +104,38 @@ def parse_politicians(payload: dict) -> list[PolitikerRoh]:
             vorname=d.get("first_name"),
             nachname=d.get("last_name"),
             partei_label=partei.get("label") if isinstance(partei, dict) else None,
+        ))
+    return ergebnis
+
+
+def _partei_aus_mandat(d: dict) -> str | None:
+    """Ermittelt das Parteilabel eines Mandats – bevorzugt ``party``,
+    ersatzweise die Fraktionszugehörigkeit."""
+    partei = d.get("party")
+    if isinstance(partei, dict) and partei.get("label"):
+        return partei["label"]
+    for fm in d.get("fraction_membership") or []:
+        fraktion = fm.get("fraction") if isinstance(fm, dict) else None
+        if isinstance(fraktion, dict) and fraktion.get("label"):
+            return fraktion["label"]
+    return None
+
+
+def parse_mandate(payload: dict) -> list[MandatRoh]:
+    """Extrahiert Mandate (type == 'mandate') aus einer candidacies-mandates-Antwort."""
+    ergebnis: list[MandatRoh] = []
+    for d in payload.get("data", []):
+        if d.get("type") not in (None, "mandate"):
+            continue
+        pol = d.get("politician") or {}
+        pol_name = pol.get("label") if isinstance(pol, dict) else None
+        if not pol_name:
+            continue
+        ergebnis.append(MandatRoh(
+            externe_id=d.get("id"),
+            politiker_name=pol_name,
+            politiker_externe_id=pol.get("id") if isinstance(pol, dict) else None,
+            partei_label=_partei_aus_mandat(d),
         ))
     return ergebnis
 
@@ -108,6 +181,43 @@ def import_politicians(
     return neu
 
 
+def import_mdb(db: Session, mandate: list[MandatRoh], *, amt: str = "MdB") -> dict[str, int]:
+    """Legt fehlende MdBs je Partei an (Zuordnung über normalisiertes Parteilabel).
+
+    Mandate mit unbekannter Partei oder ohne passenden Partei-Datensatz werden
+    übersprungen (kein Rateverfahren – gleiche Methodik für alle). Rückgabe:
+    ``{parteiname: neu_angelegt}`` plus ``"_uebersprungen"``.
+    """
+    parteien = {p.name: p for p in db.scalars(select(Partei)).all()}
+    # Bestehende Namen je Partei-ID, damit Re-Import idempotent bleibt.
+    vorhanden: dict[int, set[str]] = {}
+    for p in parteien.values():
+        vorhanden[p.id] = {
+            pol.name for pol in db.scalars(
+                select(Politiker).where(Politiker.partei_id == p.id)
+            ).all()
+        }
+    ergebnis: dict[str, int] = {}
+    uebersprungen = 0
+    for m in mandate:
+        parteiname = normalisiere_partei(m.partei_label)
+        partei = parteien.get(parteiname) if parteiname else None
+        if partei is None or not m.politiker_name:
+            uebersprungen += 1
+            continue
+        if m.politiker_name in vorhanden[partei.id]:
+            continue
+        pol = Politiker(partei_id=partei.id, name=m.politiker_name, amt=amt, aktiv=True)
+        db.add(pol)
+        db.flush()
+        audit(db, tabelle="politiker", datensatz_id=pol.id,
+              aktion=AuditAktion.erstellt, akteur="abgeordnetenwatch:mandate")
+        vorhanden[partei.id].add(m.politiker_name)
+        ergebnis[partei.name] = ergebnis.get(partei.name, 0) + 1
+    ergebnis["_uebersprungen"] = uebersprungen
+    return ergebnis
+
+
 class AbgeordnetenwatchClient:
     """Dünner HTTP-Client mit range_start/range_end-Pagination."""
 
@@ -124,6 +234,18 @@ class AbgeordnetenwatchClient:
         resp = self._client.get(f"{self.base}/politicians", params=params)
         resp.raise_for_status()
         return parse_politicians(resp.json())
+
+    def mandate(self, *, parliament_period: int, limit: int = 1000) -> list[MandatRoh]:
+        """Alle Mandate einer Legislaturperiode (Bundestag) abrufen."""
+        params = {
+            "parliament_period": parliament_period,
+            "type": "mandate",
+            "range_start": 0,
+            "range_end": limit,
+        }
+        resp = self._client.get(f"{self.base}/candidacies-mandates", params=params)
+        resp.raise_for_status()
+        return parse_mandate(resp.json())
 
     def questions(self, *, politician_id: int, limit: int = 50) -> list[FrageRoh]:
         params = {"politician": politician_id, "range_start": 0, "range_end": limit}

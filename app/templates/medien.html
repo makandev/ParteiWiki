@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Medien – Orientierung & Vertrauen – ParteiWiki{% endblock %}
+{% block content %}
+<nav class="breadcrumb"><a href="/">Übersicht</a> / Medien</nav>
+<h1>Medien – Orientierung & Vertrauen</h1>
+<p class="lead">
+  Zur Einordnung: Jede Quelle bekommt einen <strong>neutralen Hinweis</strong> auf ihre
+  politische Orientierung und eine Vertrauensstufe. Das ist <em>keine</em> Bewertung
+  der einzelnen Inhalte – es soll helfen, Berichte bewusst und mit der nötigen
+  Vorsicht zu lesen. Gleiche Kriterien für alle.
+</p>
+
+<section>
+  <h2>Seriöse Medien</h2>
+  <p class="muted small">Etablierte, journalistisch-redaktionell arbeitende Medien – quer über das Spektrum.</p>
+  <table class="snapshots">
+    <thead><tr><th>Medium</th><th>Orientierung</th><th>Basis-URL</th></tr></thead>
+    <tbody>
+    {% for q in serioes %}
+      <tr>
+        <td>{{ q.medienname }}</td>
+        <td>{% if q.spektrum %}<span class="tag spk-{{ q.spektrum }}">{{ spektrum_label.get(q.spektrum, q.spektrum) }}</span>{% else %}—{% endif %}</td>
+        <td>{% if q.url_basis %}<a href="{{ q.url_basis }}" rel="noopener">{{ q.url_basis }}</a>{% else %}—{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% if mit_vorsicht %}
+<section>
+  <h2>Mit Vorsicht zu lesen</h2>
+  <p class="muted small">Seriös betrieben, aber stark meinungs-/haltungsbetont (klare Ausrichtung). Bewusst gekennzeichnet.</p>
+  <table class="snapshots">
+    <thead><tr><th>Medium</th><th>Orientierung</th><th>Basis-URL</th></tr></thead>
+    <tbody>
+    {% for q in mit_vorsicht %}
+      <tr>
+        <td>{{ q.medienname }} <span class="tag status-vorlaeufig">mit Vorsicht</span></td>
+        <td>{% if q.spektrum %}<span class="tag spk-{{ q.spektrum }}">{{ spektrum_label.get(q.spektrum, q.spektrum) }}</span>{% else %}—{% endif %}</td>
+        <td>{% if q.url_basis %}<a href="{{ q.url_basis }}" rel="noopener">{{ q.url_basis }}</a>{% else %}—{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section>
+  <h2>⚠️ Nicht als Quelle zählend: Satire, Fake & Propaganda</h2>
+  <p class="lead">
+    Diese Portale werden <strong>nicht</strong> aggregiert und zählen nie als Beleg –
+    hier aber <strong>bewusst zur Aufklärung</strong> gezeigt: Wer sie kennt, erkennt sie wieder.
+  </p>
+  {% if ausgeschlossen %}
+  <table class="snapshots">
+    <thead><tr><th>Portal</th><th>Warum ausgeschlossen</th><th>Basis-URL</th></tr></thead>
+    <tbody>
+    {% for q in ausgeschlossen %}
+      <tr>
+        <td>{{ q.medienname }} <span class="tag snap-entfernt">ausgeschlossen</span></td>
+        <td>{{ q.ausschluss_begruendung or "—" }}</td>
+        <td>{% if q.url_basis %}<span class="muted">{{ q.url_basis }}</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">
+    Hinweis: „Satire" ist Unterhaltung, keine Nachricht. „Propaganda/Fake" verbreitet gezielt
+    irreführende Inhalte. Die Einordnung ist transparent begründet und wird bei Bedarf angepasst.
+  </p>
+  {% else %}<p class="muted">Aktuell sind keine Quellen ausgeschlossen.</p>{% endif %}
+</section>
+{% endblock %}

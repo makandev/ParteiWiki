@@ -102,6 +102,9 @@ class Quelle(Base):
     vertrauensstufe: Mapped[Vertrauensstufe] = mapped_column(
         _enum(Vertrauensstufe), default=Vertrauensstufe.serioes, nullable=False
     )
+    # Politische Orientierung (Transparenz-Hinweis): links | mitte-links | mitte
+    # | mitte-rechts | rechts | agentur | None.
+    spektrum: Mapped[str | None] = mapped_column(Text)
     # Begründung, warum eine Quelle "ausgeschlossen" ist (Kriterien 4d).
     ausschluss_begruendung: Mapped[str | None] = mapped_column(Text)
 

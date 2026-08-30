@@ -17,7 +17,13 @@ from app.database import get_db
 from app.enums import Vertrauensstufe
 from app.models import Ereignis, Erwaehnung, Meldung, MethodikChangelog, Partei, Quelle
 from app.services import rag
-from app.web.labels import KATEGORIE_LABEL, SNAPSHOT_LABEL, STATUS_LABEL
+from app.web.labels import (
+    KATEGORIE_LABEL,
+    SNAPSHOT_LABEL,
+    SPEKTRUM_LABEL,
+    STATUS_LABEL,
+    VERTRAUEN_LABEL,
+)
 
 router = APIRouter(tags=["web"], include_in_schema=False)
 
@@ -27,6 +33,8 @@ templates.env.globals.update(
     kategorie_label=KATEGORIE_LABEL,
     status_label=STATUS_LABEL,
     snapshot_label=SNAPSHOT_LABEL,
+    spektrum_label=SPEKTRUM_LABEL,
+    vertrauen_label=VERTRAUEN_LABEL,
     jetzt=lambda: dt.datetime.now(),
 )
 
@@ -65,7 +73,9 @@ def partei_profil(
     positionen = sorted(
         partei.positionen, key=lambda p: p.geaendert_am or dt.date.min, reverse=True
     )
-    mediennamen = {q.id: q.medienname for q in db.scalars(select(Quelle)).all()}
+    _quellen = db.scalars(select(Quelle)).all()
+    mediennamen = {q.id: q.medienname for q in _quellen}
+    medien = {q.id: q for q in _quellen}  # für Orientierungs-Hinweis je Meldung
 
     # Nachrichten ÜBER die Partei: nur Meldungen, in denen die Partei (per NER)
     # erwähnt wird UND im Titel vorkommt. Das verhindert Fremd-Themen (z. B. eine
@@ -131,6 +141,7 @@ def partei_profil(
             "quellen_je_ereignis": quellen_je_ereignis,
             "meldungen": meldungen,
             "mediennamen": mediennamen,
+            "medien": medien,
             "viel_beachtet": viel_beachtet[:6],
             "verfuegbare_medien": verfuegbare_medien,
             "ausgeblendet": ausgeblendet,
@@ -169,7 +180,9 @@ def news_seite(request: Request, db: Session = Depends(get_db)):
         select(Meldung).order_by(Meldung.erfasst_am.desc()).limit(50)
     ).all()
     cluster = framing_cluster(db=db, partei_id=None, limit=20)
-    mediennamen = {q.id: q.medienname for q in db.scalars(select(Quelle)).all()}
+    _quellen = db.scalars(select(Quelle)).all()
+    mediennamen = {q.id: q.medienname for q in _quellen}
+    medien = {q.id: q for q in _quellen}
     parteinamen = {p.id: p.name for p in db.scalars(select(Partei)).all()}
     return templates.TemplateResponse(
         "news.html",
@@ -178,7 +191,27 @@ def news_seite(request: Request, db: Session = Depends(get_db)):
             "meldungen": meldungen,
             "cluster": cluster,
             "mediennamen": mediennamen,
+            "medien": medien,
             "parteinamen": parteinamen,
+        },
+    )
+
+
+@router.get("/medien", response_class=HTMLResponse)
+def medien_seite(request: Request, db: Session = Depends(get_db)):
+    """Medien-Transparenz: Orientierung + Vertrauensstufe je Quelle, inkl. der
+    ausgeschlossenen Satire-/Fake-/Propaganda-Quellen (zu Wissenszwecken)."""
+    quellen = db.scalars(select(Quelle).order_by(Quelle.medienname)).all()
+    serioes = [q for q in quellen if q.vertrauensstufe == Vertrauensstufe.serioes]
+    mit_vorsicht = [q for q in quellen if q.vertrauensstufe == Vertrauensstufe.mit_vorsicht]
+    ausgeschlossen = [q for q in quellen if q.vertrauensstufe == Vertrauensstufe.ausgeschlossen]
+    return templates.TemplateResponse(
+        "medien.html",
+        {
+            "request": request,
+            "serioes": serioes,
+            "mit_vorsicht": mit_vorsicht,
+            "ausgeschlossen": ausgeschlossen,
         },
     )
 

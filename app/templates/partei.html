@@ -54,8 +54,11 @@
   {% if meldungen %}
   <ul class="quellen">
     {% for m in meldungen %}
+    {% set qq = medien.get(m.quelle_id) %}
     <li>
       <span class="tag">{{ mediennamen.get(m.quelle_id, "Quelle") }}</span>
+      {% if qq and qq.spektrum %}<span class="tag spk-{{ qq.spektrum }}" title="politische Orientierung">{{ spektrum_label.get(qq.spektrum, qq.spektrum) }}</span>{% endif %}
+      {% if qq and qq.vertrauensstufe.value == "mit_vorsicht" %}<span class="tag status-vorlaeufig" title="meinungsbetont">mit Vorsicht</span>{% endif %}
       <a href="{{ m.url }}" rel="noopener">{{ m.titel }}</a>
       {% set zeit = m.veroeffentlicht_am or m.erfasst_am %}
       {% if zeit %}<span class="muted small">· {{ zeit.strftime("%d.%m.%Y %H:%M") }}</span>{% endif %}

@@ -164,6 +164,7 @@ def _hole_quelle(db: Session, feed: Feed) -> Quelle:
             medienname=feed.medienname,
             url_basis=feed.url_basis,
             vertrauensstufe=feed.vertrauensstufe,
+            spektrum=feed.spektrum,
         )
         db.add(quelle)
         db.flush()

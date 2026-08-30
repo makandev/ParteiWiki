@@ -17,24 +17,38 @@ from app.enums import Vertrauensstufe
 from app.models import MethodikChangelog, Partei, Politiker, Quelle
 
 
-def _quelle(db, medienname, url_basis, stufe=Vertrauensstufe.serioes, begruendung=None) -> int:
-    if db.scalar(select(Quelle).where(Quelle.medienname == medienname)) is not None:
-        return 0
-    db.add(Quelle(medienname=medienname, url_basis=url_basis,
-                  vertrauensstufe=stufe, ausschluss_begruendung=begruendung))
-    return 1
+def _quelle(db, medienname, url_basis, stufe=Vertrauensstufe.serioes,
+            begruendung=None, spektrum=None) -> int:
+    """Upsert einer Quelle: legt an oder aktualisiert Stufe/Spektrum/Begründung.
+
+    Rückgabe: 1 wenn neu angelegt, sonst 0 (Aktualisierung zählt nicht als neu).
+    """
+    q = db.scalar(select(Quelle).where(Quelle.medienname == medienname))
+    if q is None:
+        db.add(Quelle(medienname=medienname, url_basis=url_basis, vertrauensstufe=stufe,
+                      ausschluss_begruendung=begruendung, spektrum=spektrum))
+        return 1
+    q.vertrauensstufe = stufe
+    if spektrum is not None:
+        q.spektrum = spektrum
+    if begruendung is not None:
+        q.ausschluss_begruendung = begruendung
+    return 0
 
 
 def ensure_quellen(db) -> int:
-    """Legt fehlende Quellen an (kuratierte Feeds + Ausschlussliste). Idempotent."""
+    """Legt kuratierte Quellen an bzw. aktualisiert Stufe/Spektrum. Idempotent.
+
+    Rückgabe: Anzahl neu angelegter Quellen.
+    """
     from app.feeds import AUSGESCHLOSSENE, DEFAULT_FEEDS
     neu = 0
     for feed in DEFAULT_FEEDS:
-        neu += _quelle(db, feed.medienname, feed.url_basis, feed.vertrauensstufe)
+        neu += _quelle(db, feed.medienname, feed.url_basis, feed.vertrauensstufe,
+                       spektrum=feed.spektrum)
     for name, basis, grund in AUSGESCHLOSSENE:
         neu += _quelle(db, name, basis, Vertrauensstufe.ausgeschlossen, grund)
-    if neu:
-        db.commit()
+    db.commit()
     return neu
 
 
