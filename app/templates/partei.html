@@ -33,19 +33,38 @@
 
 <section>
   <h2>Nachrichten über die Partei</h2>
+  {% if verfuegbare_medien %}
+  <div class="filterbar muted small">
+    Medien:
+    {% for med in verfuegbare_medien %}
+      {% if med in ausgeblendet %}
+        <a class="tag tag-muted" href="?ohne={{ (ausgeblendet | reject('equalto', med) | list) | join(',') }}&sort={{ sort }}"
+           title="wieder einblenden">{{ med }} ✕</a>
+      {% else %}
+        <a class="tag" href="?ohne={{ ((ausgeblendet | list) + [med]) | join(',') }}&sort={{ sort }}"
+           title="ausblenden">{{ med }}</a>
+      {% endif %}
+    {% endfor %}
+    · Sortierung:
+    <a href="?ohne={{ ausgeblendet | join(',') }}&sort=datum">Datum</a> ·
+    <a href="?ohne={{ ausgeblendet | join(',') }}&sort=medium">Medium</a>
+    {% if ausgeblendet %}· <a href="?sort={{ sort }}">alle einblenden</a>{% endif %}
+  </div>
+  {% endif %}
   {% if meldungen %}
   <ul class="quellen">
     {% for m in meldungen %}
     <li>
       <span class="tag">{{ mediennamen.get(m.quelle_id, "Quelle") }}</span>
       <a href="{{ m.url }}" rel="noopener">{{ m.titel }}</a>
-      {% if m.veroeffentlicht_am %}<span class="muted small">· {{ m.veroeffentlicht_am.strftime("%Y-%m-%d") }}</span>{% endif %}
+      {% set zeit = m.veroeffentlicht_am or m.erfasst_am %}
+      {% if zeit %}<span class="muted small">· {{ zeit.strftime("%d.%m.%Y %H:%M") }}</span>{% endif %}
     </li>
     {% endfor %}
   </ul>
   {% else %}
-  <p class="muted">Noch keine Nachrichten erfasst – sie erscheinen automatisch, sobald die Ingestion läuft
-    (<code>python -m scripts.ingest_news</code> bzw. der Auto-Scheduler).</p>
+  <p class="muted">Noch keine Nachrichten über diese Partei erfasst – sie erscheinen automatisch,
+    sobald die Ingestion läuft (Auto-Scheduler bzw. <code>python -m scripts.ingest_news</code>).</p>
   {% endif %}
 </section>
 

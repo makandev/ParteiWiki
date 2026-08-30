@@ -5,16 +5,17 @@ import datetime as dt
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.ner import PARTEI_ALIASE
 from app.core.neutralitaet import zaehle_unabhaengige_quellen
 from app.database import get_db
 from app.enums import Vertrauensstufe
-from app.models import Ereignis, Meldung, MethodikChangelog, Partei, Quelle
+from app.models import Ereignis, Erwaehnung, Meldung, MethodikChangelog, Partei, Quelle
 from app.services import rag
 from app.web.labels import KATEGORIE_LABEL, SNAPSHOT_LABEL, STATUS_LABEL
 
@@ -44,7 +45,11 @@ def startseite(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/parteien/{partei_id}", response_class=HTMLResponse)
 def partei_profil(
-    partei_id: uuid.UUID, request: Request, db: Session = Depends(get_db)
+    partei_id: uuid.UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    ohne: str = Query("", description="Medien ausblenden (kommagetrennt)"),
+    sort: str = Query("datum", description="datum | medium"),
 ):
     partei = db.get(Partei, partei_id)
     if partei is None:
@@ -60,18 +65,61 @@ def partei_profil(
     positionen = sorted(
         partei.positionen, key=lambda p: p.geaendert_am or dt.date.min, reverse=True
     )
-    # Nachrichten über die Partei (automatisch aggregiert – zum Lesen).
-    meldungen = db.scalars(
-        select(Meldung)
-        .where(Meldung.partei_id == partei_id)
-        .order_by(Meldung.erfasst_am.desc())
-        .limit(30)
-    ).all()
     mediennamen = {q.id: q.medienname for q in db.scalars(select(Quelle)).all()}
-    # Stark beachtete Themen (mehrere unabhängige Quellen) – neutral hervorgehoben.
-    from app.api.news import framing_cluster
 
-    viel_beachtet = framing_cluster(db=db, partei_id=partei_id, limit=6)
+    # Nachrichten ÜBER die Partei: nur Meldungen, in denen die Partei (per NER)
+    # erwähnt wird UND im Titel vorkommt. Das verhindert Fremd-Themen (z. B. eine
+    # Trump-Meldung, in der die Partei nur am Rande genannt wird) und ordnet
+    # Meldungen dank Erwähnungen der richtigen Partei zu (auch mehreren).
+    namen = [partei.name, *PARTEI_ALIASE.get(partei.name, [])]
+    kandidaten = db.scalars(
+        select(Meldung)
+        .join(Erwaehnung, Erwaehnung.meldung_id == Meldung.id)
+        .where(Erwaehnung.partei_id == partei_id)
+        .order_by(Meldung.erfasst_am.desc())
+        .distinct()
+        .limit(120)
+    ).all()
+
+    def im_titel(m):
+        titel = (m.titel or "").lower()
+        return any(n.lower() in titel for n in namen)
+
+    ausgeblendet = {m.strip() for m in ohne.split(",") if m.strip()}
+    meldungen = [
+        m for m in kandidaten
+        if im_titel(m) and mediennamen.get(m.quelle_id) not in ausgeblendet
+    ]
+    if sort == "medium":
+        meldungen.sort(key=lambda m: (mediennamen.get(m.quelle_id, ""), m.erfasst_am))
+    meldungen = meldungen[:40]
+
+    verfuegbare_medien = sorted({
+        mediennamen.get(m.quelle_id) for m in kandidaten
+        if im_titel(m) and mediennamen.get(m.quelle_id)
+    })
+
+    # Viel beachtet: Cluster unter diesen Meldungen mit >= 2 unabhängigen Quellen.
+    from collections import defaultdict
+
+    cluster_map: dict = defaultdict(list)
+    for m in meldungen:
+        if m.cluster_id:
+            cluster_map[m.cluster_id].append(m)
+    viel_beachtet = []
+    for cid, ms in cluster_map.items():
+        quellen = {m.quelle_id for m in ms}
+        if len(quellen) >= 2:
+            viel_beachtet.append({
+                "anzahl_quellen": len(quellen),
+                "meldungen": [
+                    {"medienname": mediennamen.get(m.quelle_id, "Quelle"),
+                     "titel": m.titel, "url": m.url}
+                    for m in ms
+                ],
+            })
+    viel_beachtet.sort(key=lambda c: c["anzahl_quellen"], reverse=True)
+
     return templates.TemplateResponse(
         "partei.html",
         {
@@ -83,7 +131,10 @@ def partei_profil(
             "quellen_je_ereignis": quellen_je_ereignis,
             "meldungen": meldungen,
             "mediennamen": mediennamen,
-            "viel_beachtet": viel_beachtet,
+            "viel_beachtet": viel_beachtet[:6],
+            "verfuegbare_medien": verfuegbare_medien,
+            "ausgeblendet": ausgeblendet,
+            "sort": sort,
         },
     )
 

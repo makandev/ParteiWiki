@@ -17,11 +17,25 @@ from app.enums import Vertrauensstufe
 from app.models import MethodikChangelog, Partei, Politiker, Quelle
 
 
-def _quelle(db, medienname, url_basis, stufe=Vertrauensstufe.serioes, begruendung=None):
-    q = db.scalar(select(Quelle).where(Quelle.medienname == medienname))
-    if q is None:
-        db.add(Quelle(medienname=medienname, url_basis=url_basis,
-                      vertrauensstufe=stufe, ausschluss_begruendung=begruendung))
+def _quelle(db, medienname, url_basis, stufe=Vertrauensstufe.serioes, begruendung=None) -> int:
+    if db.scalar(select(Quelle).where(Quelle.medienname == medienname)) is not None:
+        return 0
+    db.add(Quelle(medienname=medienname, url_basis=url_basis,
+                  vertrauensstufe=stufe, ausschluss_begruendung=begruendung))
+    return 1
+
+
+def ensure_quellen(db) -> int:
+    """Legt fehlende Quellen an (kuratierte Feeds + Ausschlussliste). Idempotent."""
+    from app.feeds import AUSGESCHLOSSENE, DEFAULT_FEEDS
+    neu = 0
+    for feed in DEFAULT_FEEDS:
+        neu += _quelle(db, feed.medienname, feed.url_basis, feed.vertrauensstufe)
+    for name, basis, grund in AUSGESCHLOSSENE:
+        neu += _quelle(db, name, basis, Vertrauensstufe.ausgeschlossen, grund)
+    if neu:
+        db.commit()
+    return neu
 
 
 def seed() -> None:
@@ -52,23 +66,7 @@ def seed() -> None:
                       amt="Bundessprecher (Co-Vorsitz), MdB"),
         ])
 
-        # Quellen-Stammdaten (Vertrauensstufen für die Ingestion).
-        for name, basis in [
-            ("tagesschau", "https://www.tagesschau.de"),
-            ("Zeit", "https://www.zeit.de"),
-            ("FAZ", "https://www.faz.net"),
-            ("SZ", "https://www.sueddeutsche.de"),
-            ("Welt", "https://www.welt.de"),
-            ("taz", "https://taz.de"),
-            ("Spiegel", "https://www.spiegel.de"),
-            ("dpa", "https://www.dpa.com"),
-            ("Reuters", "https://www.reuters.com"),
-        ]:
-            _quelle(db, name, basis)
-        # Beispiel einer ausgeschlossenen Quelle (Kriterien 4d) – öffentlich einsehbar.
-        _quelle(db, "Beispiel-Satireportal", "https://satire.example",
-                Vertrauensstufe.ausgeschlossen,
-                "Satire, keine Faktenberichterstattung (Kriterien 4d).")
+        ensure_quellen(db)  # kuratierte Feeds + öffentliche Ausschlussliste
 
         db.add(MethodikChangelog(
             was_geaendert="Initiale Stammdaten (Pilot AfD) und Quellenliste angelegt.",

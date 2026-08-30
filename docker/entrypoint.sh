@@ -56,15 +56,17 @@ finally:
     db.close()
 PY
 
-# Alle Parteien sicherstellen (Übersicht zeigt alle; idempotent).
+# Alle Parteien + kuratierte Quellen/Ausschlussliste sicherstellen (idempotent).
 python - <<'PY'
 from app.database import SessionLocal
 from scripts.seed_parteien import ensure_parteien
+from scripts.seed import ensure_quellen
 db = SessionLocal()
 try:
-    neu = ensure_parteien(db)
-    if neu:
-        print(f"[entrypoint] Parteien ergänzt: {neu}")
+    p = ensure_parteien(db)
+    q = ensure_quellen(db)
+    if p or q:
+        print(f"[entrypoint] ergaenzt: {p} Parteien, {q} Quellen")
 finally:
     db.close()
 PY
