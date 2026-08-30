@@ -32,6 +32,8 @@ services:
       LLM: extractive
       ENV: production
       SEED_ON_START: "1"
+      # Auto-Ingestion lokal aus (0). Für Live-News > 0 setzen (z. B. 60).
+      INGEST_INTERVAL_MINUTES: "0"
     ports:
       - "8000:8000"
 

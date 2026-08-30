@@ -13,6 +13,42 @@
   </dl>
 </section>
 
+{% if viel_beachtet %}
+<section>
+  <h2>Viel beachtet</h2>
+  <p class="muted small">Themen, über die mehrere unabhängige Quellen berichten. Nur Faktendichte – keine Bewertung.</p>
+  {% for c in viel_beachtet %}
+  <div class="cluster">
+    <div class="cluster-head muted small">{{ c.anzahl_quellen }} unabhängige Quellen</div>
+    <ul class="quellen">
+      {% for m in c.meldungen %}
+      <li><span class="tag">{{ m.medienname }}</span>
+        <a href="{{ m.url }}" rel="noopener">{{ m.titel }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section>
+  <h2>Nachrichten über die Partei</h2>
+  {% if meldungen %}
+  <ul class="quellen">
+    {% for m in meldungen %}
+    <li>
+      <span class="tag">{{ mediennamen.get(m.quelle_id, "Quelle") }}</span>
+      <a href="{{ m.url }}" rel="noopener">{{ m.titel }}</a>
+      {% if m.veroeffentlicht_am %}<span class="muted small">· {{ m.veroeffentlicht_am.strftime("%Y-%m-%d") }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Noch keine Nachrichten erfasst – sie erscheinen automatisch, sobald die Ingestion läuft
+    (<code>python -m scripts.ingest_news</code> bzw. der Auto-Scheduler).</p>
+  {% endif %}
+</section>
+
 <section>
   <h2>Personen</h2>
   {% if politiker %}
