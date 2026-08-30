@@ -19,6 +19,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Enum as SAEnum,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -34,6 +35,7 @@ from app.enums import (
     AuditAktion,
     Ereigniskategorie,
     Ereignisstatus,
+    Kennzahlart,
     SnapshotStatus,
     Stimme,
     TagMethode,
@@ -67,6 +69,9 @@ class Partei(Base):
     )
     ereignisse: Mapped[list["Ereignis"]] = relationship(back_populates="partei")
     positionen: Mapped[list["PositionsHistorie"]] = relationship(
+        back_populates="partei", cascade="all, delete-orphan"
+    )
+    kennzahlen: Mapped[list["Kennzahl"]] = relationship(
         back_populates="partei", cascade="all, delete-orphan"
     )
 
@@ -278,6 +283,38 @@ class PositionsHistorie(Base):
     partei: Mapped["Partei"] = relationship(back_populates="positionen")
 
 
+class Kennzahl(Base):
+    """14. kennzahlen – veränderliche Zahlen je Partei über die Zeit.
+
+    Wahlergebnisse, Umfragen, Sitze, Mitgliederzahlen – jeweils mit Zeitpunkt
+    und **Pflicht-Quelle** (keine Behauptung ohne Beleg, gleiche Methodik für
+    alle Parteien). Eindeutig je (Partei, Art, Zeitpunkt), damit Re-Importe
+    idempotent aktualisieren statt zu duplizieren.
+    """
+
+    __tablename__ = "kennzahlen"
+
+    id: Mapped[uuid.UUID] = _pk()
+    partei_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("parteien.id", ondelete="CASCADE"), nullable=False
+    )
+    art: Mapped[Kennzahlart] = mapped_column(_enum(Kennzahlart), nullable=False)
+    wert: Mapped[float] = mapped_column(Float, nullable=False)
+    einheit: Mapped[str] = mapped_column(Text, nullable=False, default="%")
+    zeitpunkt: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    label: Mapped[str | None] = mapped_column(Text)  # z.B. "Bundestagswahl 2025"
+    quelle_url: Mapped[str] = mapped_column(Text, nullable=False)  # Pflicht-Beleg
+    quelle_name: Mapped[str | None] = mapped_column(Text)  # z.B. "Bundeswahlleiterin"
+    vorlaeufig: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    bemerkung: Mapped[str | None] = mapped_column(Text)
+
+    partei: Mapped["Partei"] = relationship(back_populates="kennzahlen")
+
+    __table_args__ = (
+        CheckConstraint("quelle_url <> ''", name="ck_kennzahl_hat_quelle"),
+    )
+
+
 class MethodikChangelog(Base):
     """10. methodik_changelog – Transparenz-Pflicht (Kriterien Punkt 6)."""
 
@@ -391,4 +428,5 @@ __all__ = [
     "AuditLog",
     "Meldung",
     "Erwaehnung",
+    "Kennzahl",
 ]

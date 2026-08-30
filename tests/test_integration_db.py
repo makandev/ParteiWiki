@@ -171,6 +171,33 @@ def test_import_mdb_ordnet_und_ist_idempotent(db):
     assert anzahl == 1
 
 
+# --- Kennzahlen (Wahlergebnisse, quellenpflichtig, idempotent) -----------
+def test_ensure_kennzahlen_idempotent_und_belegt(db):
+    from app.enums import Kennzahlart
+    from app.models import Kennzahl
+    from scripts.seed_kennzahlen import ensure_kennzahlen
+
+    # Parteien anlegen, die die Seed-Daten erwarten.
+    for name in ("SPD", "CDU", "AfD", "Grüne"):
+        _partei_or_create(db, name)
+    db.flush()
+
+    ensure_kennzahlen(db)
+    kennzahlen = db.scalars(
+        select(Kennzahl).where(Kennzahl.art == Kennzahlart.bundestagswahl_zweitstimme)
+    ).all()
+    assert kennzahlen, "erwarte angelegte Wahlergebnis-Kennzahlen"
+    # Redaktionelle Kern-Invariante: jede Zahl hat eine Quelle.
+    assert all(k.quelle_url for k in kennzahlen)
+
+    anzahl_vorher = len(kennzahlen)
+    ensure_kennzahlen(db)  # zweiter Lauf -> aktualisiert, dupliziert nicht
+    anzahl_nachher = len(db.scalars(
+        select(Kennzahl).where(Kennzahl.art == Kennzahlart.bundestagswahl_zweitstimme)
+    ).all())
+    assert anzahl_nachher == anzahl_vorher
+
+
 # --- RAG: Treffer + belegte Antwort --------------------------------------
 def test_rag_query_liefert_beleg(db, client):
     partei = _partei(db)

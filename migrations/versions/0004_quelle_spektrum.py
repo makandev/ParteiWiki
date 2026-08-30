@@ -16,9 +16,20 @@ branch_labels = None
 depends_on = None
 
 
+def _hat_spalte(bind, tabelle: str, spalte: str) -> bool:
+    return spalte in {c["name"] for c in sa.inspect(bind).get_columns(tabelle)}
+
+
 def upgrade() -> None:
-    op.add_column("quellen", sa.Column("spektrum", sa.Text(), nullable=True))
+    # Idempotent: Das Basis-Schema (0001) legt Tabellen aus dem aktuellen Modell
+    # an – auf einer frisch aufgesetzten DB existiert die Spalte daher evtl.
+    # schon. Nur ergänzen, wenn sie fehlt (bestehende DBs migrieren normal).
+    bind = op.get_bind()
+    if not _hat_spalte(bind, "quellen", "spektrum"):
+        op.add_column("quellen", sa.Column("spektrum", sa.Text(), nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column("quellen", "spektrum")
+    bind = op.get_bind()
+    if _hat_spalte(bind, "quellen", "spektrum"):
+        op.drop_column("quellen", "spektrum")

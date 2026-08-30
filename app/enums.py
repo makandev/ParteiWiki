@@ -72,6 +72,20 @@ class AuditAktion(str, enum.Enum):
     geloescht = "geloescht"
 
 
+class Kennzahlart(str, enum.Enum):
+    """kennzahlen.art – veränderliche Zahlen je Partei über die Zeit.
+
+    Jede Kennzahl ist quellenpflichtig (gleiche Methodik für alle Parteien,
+    keine Behauptung ohne Beleg). ``einheit`` (z. B. "%", "Sitze") steht
+    separat im Datensatz.
+    """
+
+    bundestagswahl_zweitstimme = "bundestagswahl_zweitstimme"
+    umfrage_bund = "umfrage_bund"
+    sitze_bundestag = "sitze_bundestag"
+    mitglieder = "mitglieder"
+
+
 class TagMethode(str, enum.Enum):
     """erwaehnungen.methode – wie eine Entität erkannt wurde (Tech-Ansatz 6)."""
 

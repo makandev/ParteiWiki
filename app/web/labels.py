@@ -38,3 +38,11 @@ VERTRAUEN_LABEL = {
     "mit_vorsicht": "mit Vorsicht",
     "ausgeschlossen": "ausgeschlossen",
 }
+
+# Kennzahlen-Arten (veränderliche Zahlen je Partei über die Zeit).
+KENNZAHL_LABEL = {
+    "bundestagswahl_zweitstimme": "Bundestagswahl (Zweitstimme)",
+    "umfrage_bund": "Umfrage (Bund)",
+    "sitze_bundestag": "Sitze im Bundestag",
+    "mitglieder": "Mitglieder",
+}

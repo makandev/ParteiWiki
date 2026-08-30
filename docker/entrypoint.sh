@@ -56,17 +56,20 @@ finally:
     db.close()
 PY
 
-# Alle Parteien + kuratierte Quellen/Ausschlussliste sicherstellen (idempotent).
+# Alle Parteien + kuratierte Quellen/Ausschlussliste + Wahlergebnis-Kennzahlen
+# sicherstellen (idempotent).
 python - <<'PY'
 from app.database import SessionLocal
 from scripts.seed_parteien import ensure_parteien
 from scripts.seed import ensure_quellen
+from scripts.seed_kennzahlen import ensure_kennzahlen
 db = SessionLocal()
 try:
     p = ensure_parteien(db)
     q = ensure_quellen(db)
-    if p or q:
-        print(f"[entrypoint] ergaenzt: {p} Parteien, {q} Quellen")
+    k = ensure_kennzahlen(db)
+    if p or q or k:
+        print(f"[entrypoint] ergaenzt: {p} Parteien, {q} Quellen, {k} Kennzahlen")
 finally:
     db.close()
 PY

@@ -14,7 +14,12 @@
     {% for partei in parteien %}
     <a class="card" href="/parteien/{{ partei.id }}">
       <h2>{{ partei.name }}</h2>
-      {% if partei.gruendungsjahr %}<p class="muted">gegründet {{ partei.gruendungsjahr }}</p>{% endif %}
+      {% set kw = letzte_wahl.get(partei.id) %}
+      {% if kw %}
+        <p class="kennzahl-gross">{{ "%.1f"|format(kw.wert) }}&nbsp;{{ kw.einheit }}
+          <span class="muted small">· {{ kw.label }}</span></p>
+      {% endif %}
+      {% if partei.gruendungsjahr %}<p class="muted small">gegründet {{ partei.gruendungsjahr }}</p>{% endif %}
       {% if partei.kurzbeschreibung %}<p>{{ partei.kurzbeschreibung }}</p>{% endif %}
     </a>
     {% else %}

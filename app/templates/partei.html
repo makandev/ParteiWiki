@@ -13,6 +13,34 @@
   </dl>
 </section>
 
+{% if kennzahlen_nach_art %}
+<section>
+  <h2>Kennzahlen</h2>
+  <p class="muted small">Veränderliche Zahlen über die Zeit – jede mit Pflicht-Quelle.
+    Gleiche Methodik für alle Parteien, keine Zahl ohne Beleg.</p>
+  {% for art, liste in kennzahlen_nach_art.items() %}
+  <div class="kennzahl-block">
+    <h3 class="kennzahl-titel">{{ kennzahl_label.get(art, art) }}</h3>
+    <table class="snapshots">
+      <thead><tr><th>Zeitpunkt</th><th>Wert</th><th>Beleg</th></tr></thead>
+      <tbody>
+      {% for k in liste %}
+        <tr>
+          <td>{{ k.label or k.zeitpunkt.strftime("%d.%m.%Y") }}</td>
+          <td><strong>{{ "%.2f"|format(k.wert) }}&nbsp;{{ k.einheit }}</strong>
+            {% if k.vorlaeufig %}<span class="tag status-vorlaeufig" title="{{ k.bemerkung or 'noch zu verifizieren' }}">vorläufig</span>{% endif %}
+            {% if k.bemerkung %}<span class="muted small">· {{ k.bemerkung }}</span>{% endif %}
+          </td>
+          <td>{% if k.quelle_url %}<a href="{{ k.quelle_url }}" rel="noopener">{{ k.quelle_name or "Quelle" }}</a>{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
 {% if viel_beachtet %}
 <section>
   <h2>Viel beachtet</h2>

@@ -14,11 +14,20 @@ from sqlalchemy.orm import Session
 from app.core.ner import PARTEI_ALIASE
 from app.core.neutralitaet import zaehle_unabhaengige_quellen
 from app.database import get_db
-from app.enums import Vertrauensstufe
-from app.models import Ereignis, Erwaehnung, Meldung, MethodikChangelog, Partei, Quelle
+from app.enums import Kennzahlart, Vertrauensstufe
+from app.models import (
+    Ereignis,
+    Erwaehnung,
+    Kennzahl,
+    Meldung,
+    MethodikChangelog,
+    Partei,
+    Quelle,
+)
 from app.services import rag
 from app.web.labels import (
     KATEGORIE_LABEL,
+    KENNZAHL_LABEL,
     SNAPSHOT_LABEL,
     SPEKTRUM_LABEL,
     STATUS_LABEL,
@@ -35,6 +44,7 @@ templates.env.globals.update(
     snapshot_label=SNAPSHOT_LABEL,
     spektrum_label=SPEKTRUM_LABEL,
     vertrauen_label=VERTRAUEN_LABEL,
+    kennzahl_label=KENNZAHL_LABEL,
     jetzt=lambda: dt.datetime.now(),
 )
 
@@ -45,9 +55,22 @@ def startseite(request: Request, db: Session = Depends(get_db)):
     changelog = db.scalars(
         select(MethodikChangelog).order_by(MethodikChangelog.datum.desc()).limit(5)
     ).all()
+    # Je Partei das jüngste Bundestagswahl-Ergebnis für die Übersichtskarte.
+    letzte_wahl: dict[uuid.UUID, Kennzahl] = {}
+    for k in db.scalars(
+        select(Kennzahl)
+        .where(Kennzahl.art == Kennzahlart.bundestagswahl_zweitstimme)
+        .order_by(Kennzahl.zeitpunkt.desc())
+    ).all():
+        letzte_wahl.setdefault(k.partei_id, k)  # erste = jüngste dank Sortierung
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "parteien": parteien, "changelog": changelog},
+        {
+            "request": request,
+            "parteien": parteien,
+            "changelog": changelog,
+            "letzte_wahl": letzte_wahl,
+        },
     )
 
 
@@ -73,6 +96,12 @@ def partei_profil(
     positionen = sorted(
         partei.positionen, key=lambda p: p.geaendert_am or dt.date.min, reverse=True
     )
+    # Kennzahlen (Wahlergebnisse etc.) je Art gruppiert, jüngste zuerst.
+    from collections import defaultdict as _dd
+
+    kennzahlen_nach_art: dict = _dd(list)
+    for k in sorted(partei.kennzahlen, key=lambda k: k.zeitpunkt, reverse=True):
+        kennzahlen_nach_art[k.art.value].append(k)
     _quellen = db.scalars(select(Quelle)).all()
     mediennamen = {q.id: q.medienname for q in _quellen}
     medien = {q.id: q for q in _quellen}  # für Orientierungs-Hinweis je Meldung
@@ -146,6 +175,7 @@ def partei_profil(
             "verfuegbare_medien": verfuegbare_medien,
             "ausgeblendet": ausgeblendet,
             "sort": sort,
+            "kennzahlen_nach_art": dict(kennzahlen_nach_art),
         },
     )
 

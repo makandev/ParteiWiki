@@ -93,7 +93,12 @@ def seed() -> None:
         # Alle weiteren Parteien ergänzen (Übersicht zeigt alle).
         from scripts.seed_parteien import ensure_parteien
         ensure_parteien(db)
-        print("Seed abgeschlossen: Parteien-Stammdaten, AfD-Politiker, Quellenliste.")
+
+        # Kennzahlen (Wahlergebnisse) – braucht die angelegten Parteien.
+        from scripts.seed_kennzahlen import ensure_kennzahlen
+        ensure_kennzahlen(db)
+        print("Seed abgeschlossen: Parteien-Stammdaten, AfD-Politiker, "
+              "Quellenliste, Wahlergebnis-Kennzahlen.")
     finally:
         db.close()
 
