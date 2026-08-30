@@ -1,31 +1,29 @@
-# Fly.io-Konfiguration für ParteiWiki (App-Container).
-# Die Datenbank-URL wird von Fly als Secret DATABASE_URL injiziert (Managed
-# Postgres) und von der App automatisch auf das SQLAlchemy-Dialekt-Präfix
-# normalisiert. Die Backend-Defaults (spaCy-Vektoren, 300 Dim) stecken im Image.
+# fly.toml app configuration file generated for parteiwiki on 2026-08-30T11:43:46Z
 #
-# Hinweis: Der App-Name ist global eindeutig – falls "parteiwiki" vergeben ist,
-# hier (oder im Launch-Dialog) einen anderen Namen wählen.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "parteiwiki"
-primary_region = "fra"
+app = 'parteiwiki'
+primary_region = 'fra'
 
 [build]
 
 [http_service]
   internal_port = 8000
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
   [[http_service.checks]]
-    interval = "15s"
-    timeout = "5s"
-    grace_period = "45s"
-    method = "GET"
-    path = "/health"
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '45s'
+    method = 'GET'
+    path = '/health'
 
 [[vm]]
-  memory = "512mb"
-  cpu_kind = "shared"
+  memory = '512mb'
+  cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 512
