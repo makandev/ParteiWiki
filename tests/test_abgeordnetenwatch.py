@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from app.services.abgeordnetenwatch import (
+    AbgeordnetenwatchClient,
     normalisiere_partei,
     parse_mandate,
     parse_parliament_periods,
@@ -118,6 +119,44 @@ def test_waehle_aktuelle_periode_nimmt_juengsten_bundestag():
 
 def test_waehle_aktuelle_periode_leer():
     assert waehle_aktuelle_periode([]) is None
+
+
+class _FakeResp:
+    def __init__(self, data):
+        self._data = data
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"data": self._data}
+
+
+class _FakePagingClient:
+    """Simuliert die 100-pro-Seite-Grenze von abgeordnetenwatch."""
+
+    def __init__(self, gesamt: int):
+        # gesamt Mandate, jeweils einer anderen Person, alle AfD.
+        self._alle = [
+            {"id": i, "type": "mandate",
+             "politician": {"id": i, "label": f"Person {i}"},
+             "party": {"id": 1, "label": "AfD"}}
+            for i in range(gesamt)
+        ]
+
+    def get(self, url, params=None):
+        start = params["range_start"]
+        groesse = params["range_end"]
+        return _FakeResp(self._alle[start:start + groesse])
+
+
+def test_mandate_paginiert_ueber_alle_seiten():
+    # 630 Mandate wie im echten Bundestag – die 100er-Grenze darf nicht kappen.
+    client = AbgeordnetenwatchClient(client=_FakePagingClient(630))
+    mandate = client.mandate(parliament_period=161, seiten_groesse=100)
+    assert len(mandate) == 630
+    assert mandate[0].politiker_name == "Person 0"
+    assert mandate[-1].politiker_name == "Person 629"
 
 
 def test_normalisiere_partei():

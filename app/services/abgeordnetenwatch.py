@@ -294,17 +294,34 @@ class AbgeordnetenwatchClient:
             self.parliament_periods(parlament="Bundestag"), parlament="Bundestag"
         )
 
-    def mandate(self, *, parliament_period: int, limit: int = 1000) -> list[MandatRoh]:
-        """Alle Mandate einer Legislaturperiode (Bundestag) abrufen."""
-        params = {
-            "parliament_period": parliament_period,
-            "type": "mandate",
-            "range_start": 0,
-            "range_end": limit,
-        }
-        resp = self._client.get(f"{self.base}/candidacies-mandates", params=params)
-        resp.raise_for_status()
-        return parse_mandate(resp.json())
+    def mandate(
+        self, *, parliament_period: int, max_gesamt: int = 5000, seiten_groesse: int = 100
+    ) -> list[MandatRoh]:
+        """Alle Mandate einer Legislaturperiode (Bundestag) abrufen.
+
+        abgeordnetenwatch liefert höchstens ~100 Einträge pro Anfrage; deshalb
+        wird seitenweise abgerufen (``range_start``-Offset), bis eine Seite nicht
+        mehr voll ist. So werden wirklich alle ~630 MdBs geladen, nicht nur die
+        erste Seite. ``max_gesamt`` ist eine Sicherheitsgrenze gegen Endlosläufe.
+        """
+        ergebnis: list[MandatRoh] = []
+        start = 0
+        while start < max_gesamt:
+            params = {
+                "parliament_period": parliament_period,
+                "type": "mandate",
+                "range_start": start,
+                "range_end": seiten_groesse,
+            }
+            resp = self._client.get(f"{self.base}/candidacies-mandates", params=params)
+            resp.raise_for_status()
+            payload = resp.json()
+            roh_anzahl = len(payload.get("data", []))
+            ergebnis.extend(parse_mandate(payload))
+            if roh_anzahl < seiten_groesse:  # letzte (unvollständige) Seite erreicht
+                break
+            start += seiten_groesse
+        return ergebnis
 
     def questions(self, *, politician_id: int, limit: int = 50) -> list[FrageRoh]:
         params = {"politician": politician_id, "range_start": 0, "range_end": limit}
