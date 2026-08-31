@@ -290,23 +290,32 @@ class AbgeordnetenwatchClient:
         resp.raise_for_status()
         return parse_politicians(resp.json())
 
-    def parliament_periods(self, *, parlament: str = "Bundestag", limit: int = 50) -> list[PeriodeRoh]:
-        """Legislaturperioden eines Parlaments abrufen (für die Auto-Auswahl)."""
-        params = {
-            "parliament[entity.label]": parlament,
-            "type": "legislature",
-            "range_start": 0,
-            "range_end": limit,
-        }
-        resp = self._client.get(f"{self.base}/parliament-periods", params=params)
-        resp.raise_for_status()
-        return parse_parliament_periods(resp.json())
+    def parliament_periods(
+        self, *, max_gesamt: int = 2000, seiten_groesse: int = 100
+    ) -> list[PeriodeRoh]:
+        """Alle Legislaturperioden abrufen (seitenweise, wie mandate()).
+
+        Bewusst ohne serverseitigen Parlaments-Filter: die Auswahl des richtigen
+        Parlaments (Bundestag) passiert robust in Python. So kann die aktuelle
+        Bundestags-Periode nicht durch einen falschen Filter oder eine zu kleine
+        erste Seite verloren gehen."""
+        ergebnis: list[PeriodeRoh] = []
+        start = 0
+        while start < max_gesamt:
+            params = {"type": "legislature", "range_start": start, "range_end": seiten_groesse}
+            resp = self._client.get(f"{self.base}/parliament-periods", params=params)
+            resp.raise_for_status()
+            payload = resp.json()
+            roh_anzahl = len(payload.get("data", []))
+            ergebnis.extend(parse_parliament_periods(payload))
+            if roh_anzahl < seiten_groesse:
+                break
+            start += seiten_groesse
+        return ergebnis
 
     def aktuelle_bundestag_periode(self) -> PeriodeRoh | None:
         """Ermittelt die aktuelle Bundestags-Legislaturperiode automatisch."""
-        return waehle_aktuelle_periode(
-            self.parliament_periods(parlament="Bundestag"), parlament="Bundestag"
-        )
+        return waehle_aktuelle_periode(self.parliament_periods(), parlament="Bundestag")
 
     def mandate(
         self, *, parliament_period: int, max_gesamt: int = 5000, seiten_groesse: int = 100

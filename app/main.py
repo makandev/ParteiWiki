@@ -76,3 +76,39 @@ app.mount("/static", StaticFiles(directory=str(_static)), name="static")
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}
+
+
+@app.get("/health/mdb-probe", tags=["system"])
+def mdb_probe() -> dict:
+    """Read-only-Diagnose des MdB-Abrufs: zeigt, ob abgeordnetenwatch erreichbar
+    ist, ob die Bundestags-Periode gefunden wird und wie viele Mandate je Partei
+    zugeordnet werden. Schreibt NICHTS in die DB. Hilft, "nur 2 Personen" zu
+    diagnostizieren, ohne Server-Logs lesen zu müssen."""
+    from app.services.abgeordnetenwatch import (
+        AbgeordnetenwatchClient,
+        normalisiere_partei,
+    )
+
+    client = AbgeordnetenwatchClient()
+    try:
+        periode = client.aktuelle_bundestag_periode()
+        if periode is None or periode.externe_id is None:
+            return {"ok": False, "schritt": "periode",
+                    "hinweis": "keine Bundestags-Periode gefunden"}
+        mandate = client.mandate(parliament_period=periode.externe_id)
+        je_partei: dict[str, int] = {}
+        for m in mandate:
+            name = normalisiere_partei(m.partei_label) or f"?unbekannt: {m.partei_label}"
+            je_partei[name] = je_partei.get(name, 0) + 1
+        return {
+            "ok": True,
+            "periode": periode.label,
+            "periode_id": periode.externe_id,
+            "mandate_gesamt": len(mandate),
+            "je_partei": dict(sorted(je_partei.items(), key=lambda x: -x[1])),
+            "beispiele": [m.politiker_name for m in mandate[:3]],
+        }
+    except Exception as exc:  # pragma: no cover - netzabhängig
+        return {"ok": False, "schritt": "abruf", "fehler": repr(exc)}
+    finally:
+        client.close()
