@@ -54,10 +54,24 @@ PARTEI_NORMALISIERUNG: dict[str, str] = {
 
 
 def normalisiere_partei(label: str | None) -> str | None:
-    """Mappt ein abgeordnetenwatch-Parteilabel auf unseren Parteinamen."""
+    """Mappt ein abgeordnetenwatch-Parteilabel auf unseren Parteinamen.
+
+    Tolerant gegenüber Fraktions-Schreibweisen ("Fraktion der AfD",
+    "AfD-Fraktion"), damit Mandate nicht wegen eines Präfixes/Suffixes
+    übersprungen werden. Unbekannte Labels bleiben unzugeordnet (kein Raten).
+    """
     if not label:
         return None
-    return PARTEI_NORMALISIERUNG.get(label.strip().casefold())
+    kandidat = label.strip().casefold()
+    direkt = PARTEI_NORMALISIERUNG.get(kandidat)
+    if direkt is not None:
+        return direkt
+    # Häufige Fraktions-Präfixe/-Suffixe entfernen und erneut versuchen.
+    for praefix in ("fraktion der ", "fraktion "):
+        if kandidat.startswith(praefix):
+            kandidat = kandidat[len(praefix):]
+    kandidat = kandidat.removesuffix("-fraktion").removesuffix(" fraktion").strip()
+    return PARTEI_NORMALISIERUNG.get(kandidat)
 
 
 @dataclass

@@ -164,6 +164,10 @@ def test_normalisiere_partei():
     assert normalisiere_partei("BÜNDNIS 90/DIE GRÜNEN") == "Grüne"
     assert normalisiere_partei("DIE LINKE.") == "Die Linke"
     assert normalisiere_partei("Freie Wähler") == "Freie Wähler"
+    # Tolerant gegenüber Fraktions-Schreibweisen.
+    assert normalisiere_partei("Fraktion der AfD") == "AfD"
+    assert normalisiere_partei("AfD-Fraktion") == "AfD"
+    assert normalisiere_partei("Fraktion BÜNDNIS 90/DIE GRÜNEN") == "Grüne"
     # Unbekanntes Label bleibt unzugeordnet (kein Rateverfahren).
     assert normalisiere_partei("Irgendeine Kleinpartei") is None
     assert normalisiere_partei(None) is None
